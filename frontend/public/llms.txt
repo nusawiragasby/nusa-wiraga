@@ -1,0 +1,14 @@
+# Nusa Wiraga 2026
+
+> Kejuaraan Nasional Pencak Silat Nusa Wiraga — kejuaraan silat tahunan satu pekan penuh (12-18 Oktober 2026) di GOR Patriot Candrabhaga, Bekasi.
+
+## Penawaran
+- Pendaftaran atlet online untuk kategori Tanding (Putra/Putri, Kelas A-F & Bebas) dan Seni (Tunggal, Ganda, Regu)
+- Profil kejuaraan, visi, dan standar wasit juri PERSILAT
+- Informasi kategori, biaya pendaftaran, dan tata cara pembayaran
+- Bagan & hasil pertandingan serta arsip juara
+- Warta/berita resmi, galeri dokumentasi, dan peluang sponsorship
+- Kontak panitia via WhatsApp
+
+## Admin
+- Portal admin untuk verifikasi pendaftar, status pembayaran, statistik kategori, dan export CSV

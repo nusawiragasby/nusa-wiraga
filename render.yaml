@@ -1,0 +1,37 @@
+# Konfigurasi deploy backend (FastAPI) ke Render.
+# Import repo ini di https://render.com -> "New +" -> "Blueprint", Render akan
+# membaca file ini. Isi nilai env var (yang sync:false) di dashboard Render —
+# JANGAN taruh rahasia di file ini (ikut ke git).
+services:
+  - type: web
+    name: nusawiraga-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      # --- Wajib diisi di dashboard Render ---
+      - key: MONGO_URL          # connection string MongoDB Atlas
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FRONTEND_URL       # URL frontend di Vercel, mis. https://nusawiraga.vercel.app
+        sync: false
+      # --- Opsional (kosongkan bila belum dipakai) ---
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_SPREADSHEET_ID
+        sync: false

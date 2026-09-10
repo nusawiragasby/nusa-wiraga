@@ -1,0 +1,198 @@
+{
+  "project_title": "Kejuaraan Pencak Silat Nasional Nusa Wiraga (Nusa Wiraga Championship & Company Profile)",
+  "language": "id-ID",
+  "theme_strategy": {
+    "theme_mode": "dark_primary_with_high_contrast_gold",
+    "emotional_archetype": "THE PERFORMANCE PRO x HERITAGE LUXURY (Indonesian Warrior Heritage)",
+    "description": "Fusion of traditional Indonesian Pencak Silat cultural pride (batik parang subtle motif, deep crimson/maroon velvet tone) and modern championship combat arena dynamics (golden ember glow, crisp athletic typography, high visibility scoring visuals)."
+  },
+  "colors": {
+    "primary_maroon": {
+      "maroon_900": "#3B080C",
+      "maroon_800": "#5E0B13",
+      "maroon_700": "#800E19",
+      "maroon_600": "#A21420",
+      "maroon_500": "#C41C2C"
+    },
+    "gold_accent": {
+      "gold_300": "#FDE047",
+      "gold_400": "#FACC15",
+      "gold_500": "#EAB308",
+      "gold_600": "#CA8A04",
+      "gold_glow": "rgba(234, 179, 8, 0.25)"
+    },
+    "neutrals": {
+      "obsidian_black": "#0B0B0E",
+      "surface_dark": "#13131A",
+      "surface_card": "#1C1C24",
+      "surface_border": "#2E2E3A",
+      "text_main": "#F8FAFC",
+      "text_muted": "#94A3B8",
+      "text_dim": "#64748B"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "destructive": "#EF4444",
+      "info": "#38BDF8"
+    }
+  },
+  "typography": {
+    "font_family_heading": "Cabinet Grotesk, Outfit, -apple-system, sans-serif",
+    "font_family_body": "IBM Plex Sans, Inter, sans-serif",
+    "font_family_mono": "Roboto Mono, monospace",
+    "scale_hierarchy": {
+      "hero_h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-none uppercase",
+      "section_h2": "text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight",
+      "card_h3": "text-xl sm:text-2xl font-bold",
+      "widget_h4": "text-lg sm:text-xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "body_sm": "text-sm leading-normal",
+      "eyebrow_label": "text-xs font-bold tracking-[0.2em] uppercase text-amber-400"
+    }
+  },
+  "image_urls": {
+    "hero_combat_bg": "https://images.unsplash.com/photo-1780476871200-d0d5fa1b7609?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwyfHxtYXJ0aWFsJTIwYXJ0cyUyMGZpZ2h0ZXIlMjBraWNrJTIwY29tcGV0aXRpb258ZW58MHx8fHwxNzg4MjcyMDE2fDA&ixlib=rb-4.1.0&q=85",
+    "combat_action_sparring": "https://images.unsplash.com/photo-1780476870825-23f9541f99e1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHw0fHxtYXJ0aWFsJTIwYXJ0cyUyMGZpZ2h0ZXIlMjBraWNrJTIwY29tcGV0aXRpb258ZW58MHx8fHwxNzg4MjcyMDE2fDA&ixlib=rb-4.1.0&q=85",
+    "female_fighters_sparring": "https://images.unsplash.com/photo-1767987656450-13e423052ed3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxtYXJ0aWFsJTIwYXJ0cyUyMGZpZ2h0ZXIlMjBraWNrJTIwY29tcGV0aXRpb258ZW58MHx8fHwxNzg4MjcyMDE2fDA&ixlib=rb-4.1.0&q=85",
+    "medals_podium": "https://images.unsplash.com/photo-1706374503312-7a4a4c030d2d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBtZWRhbCUyMHRyb3BoeSUyMHBvZGl1bSUyMGNlcmVtb255fGVufDB8fHx8MTc4ODI3MjAyNXww&ixlib=rb-4.1.0&q=85",
+    "trophies_collection": "https://images.unsplash.com/photo-1757365225211-1515ecc8a109?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxzcG9ydHMlMjBtZWRhbCUyMHRyb3BoeSUyMHBvZGl1bSUyMGNlcmVtb255fGVufDB8fHx8MTc4ODI3MjAyNXww&ixlib=rb-4.1.0&q=85",
+    "cultural_silat_heritage": "https://images.unsplash.com/photo-1707544338077-37ea82e1d994?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxpbmRvbmVzaWElMjB0cmFkaXRpb25hbCUyMG1hcnRpYWwlMjBhcnRzJTIwc2lsYXR8ZW58MHx8fHwxNzg4MjcyMDI1fDA&ixlib=rb-4.1.0&q=85",
+    "traditional_kendo_silat_stage": "https://images.unsplash.com/photo-1707405432940-6124db71c729?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwyfHxpbmRvbmVzaWElMjB0cmFkaXRpb25hbCUyMG1hcnRpYWwlMjBhcnRzJTIwc2lsYXR8ZW58MHx8fHwxNzg4MjcyMDI1fDA&ixlib=rb-4.1.0&q=85"
+  },
+  "layout_and_sections": {
+    "navigation_header": {
+      "style": "Glassmorphism sticky with dark obsidian bg backdrop-blur-xl border-b border-amber-500/20 z-50",
+      "items": [
+        {"label": "Beranda", "target": "#beranda", "test_id": "nav-home-link"},
+        {"label": "Profil & Visi", "target": "#profil", "test_id": "nav-profile-link"},
+        {"label": "Kategori & Biaya", "target": "#kategori", "test_id": "nav-category-link"},
+        {"label": "Hasil Pertandingan", "target": "#hasil", "test_id": "nav-results-link"},
+        {"label": "Berita", "target": "#berita", "test_id": "nav-news-link"},
+        {"label": "Galeri", "target": "#galeri", "test_id": "nav-gallery-link"},
+        {"label": "Sponsor", "target": "#sponsor", "test_id": "nav-sponsor-link"}
+      ],
+      "actions": [
+        {"label": "Daftar Sekarang", "target": "/daftar", "variant": "primary_gold_button", "test_id": "nav-register-btn"},
+        {"label": "Admin Portal", "target": "/admin", "variant": "outline_maroon_button", "test_id": "nav-admin-btn"}
+      ]
+    },
+    "hero_section": {
+      "headline": "KEJUARAAN NASIONAL PENCAK SILAT NUSA WIRAGA 2026",
+      "subheadline": "Satu Pekan Akbar Para Pendekar Nusantara. Uji Tangkas, Junjung Satria, Raih Tahta Juara.",
+      "countdown_timer": "Event Annual: 12 - 18 Oktober 2026 | GOR Patriot Candrabhaga",
+      "stats_badges": [
+        {"value": "1.200+", "label": "Pendekar Terdaftar"},
+        {"value": "64", "label": "Perguruan Silat"},
+        {"value": "Rp 75.000.000", "label": "Total Hadiah & Medali"},
+        {"value": "7 Hari", "label": "Pekan Akbar 1x Setahun"}
+      ],
+      "ctas": [
+        {"label": "Formulir Pendaftaran Online", "target": "#pendaftaran", "test_id": "hero-register-cta"},
+        {"label": "Hubungi Panitia (WhatsApp)", "target": "https://wa.me/6281234567890?text=Halo%20Panitia%20Nusa%20Wiraga%20saya%20ingin%20bertanya%20seputar%20pendaftaran", "test_id": "hero-whatsapp-cta"}
+      ]
+    },
+    "company_profile_section": {
+      "title": "Tentang Nusa Wiraga",
+      "subtitle": "Warisan Budaya Nusantara, Dedikasi Tanpa Batas",
+      "story": "Nusa Wiraga adalah gelanggang kejuaraan pencak silat tahunan bergengsi tingkat nasional yang diselenggarakan selama satu pekan penuh setiap tahunnya. Menghimpun aliran silat dari pelosok kepulauan Indonesia dalam semangat persaudaraan, integritas, dan keunggulan teknik bela diri bertaraf IPSI / PERSILAT.",
+      "pillars": [
+        {"title": "Satria & Berintegritas", "desc": "Menjunjung nilai kesatriaan, sportivitas mutlak, dan rasa hormat antar perguruan."},
+        {"title": "Standar Wasit Juri PERSILAT", "desc": "Sistem penilaian digital nirkabel real-time untuk akurasi dan transparansi penuh."},
+        {"title": "Pentas Budaya & Prestasi", "desc": "Wadah pembinaan atlet usia dini hingga dewasa menyongsong pentas dunia."}
+      ]
+    },
+    "registration_flow_component": {
+      "type": "Interactive Multi-step / Direct Clean Form",
+      "endpoint": "/api/register",
+      "fields": [
+        {"name": "full_name", "label": "Nama Lengkap Atlet", "type": "text", "test_id": "reg-fullname-input"},
+        {"name": "nik_or_nisn", "label": "NIK / NISN / No. Identitas", "type": "text", "test_id": "reg-nik-input"},
+        {"name": "email", "label": "Alamat Email Aktif (Notifikasi Tiket & Bukti)", "type": "email", "test_id": "reg-email-input"},
+        {"name": "phone_whatsapp", "label": "No. WhatsApp Aktif", "type": "tel", "test_id": "reg-phone-input"},
+        {"name": "contingent_school", "label": "Nama Perguruan / Kontingen / Sekolah", "type": "text", "test_id": "reg-contingent-input"},
+        {"name": "category", "label": "Kategori Tanding / Seni", "type": "select", "options": ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Seni Regu (TGR)"], "test_id": "reg-category-select"},
+        {"name": "age_class", "label": "Kelompok Usia", "type": "select", "options": ["Usia Dini (7-11 Thn)", "Pra Remaja (12-14 Thn)", "Remaja (14-17 Thn)", "Dewasa (17-35 Thn)"], "test_id": "reg-age-select"},
+        {"name": "weight_class", "label": "Kelas Tanding (Berat Badan)", "type": "select", "options": ["Kelas A (39-43 kg)", "Kelas B (43-47 kg)", "Kelas C (47-51 kg)", "Kelas D (51-55 kg)", "Kelas E (55-59 kg)", "Kelas F (59-63 kg)", "Bebas (>63 kg)"], "test_id": "reg-weight-select"},
+        {"name": "official_coach", "label": "Nama Pelatih / Official", "type": "text", "test_id": "reg-coach-input"}
+      ],
+      "post_submit_modal": {
+        "title": "Pendaftaran Berhasil Dikirim!",
+        "description": "Nomor Registrasi Unik telah dibuat. Email konfirmasi dan instruksi verifikasi timbangan telah dikirimkan ke email pendaftar. Tim Panitia juga siap melayani via WhatsApp."
+      }
+    },
+    "match_results_section": {
+      "title": "Bagan & Hasil Pertandingan",
+      "subtitle": "Update Papan Skor Live dan Arsip Juara",
+      "filter_tabs": ["Semua Kategori", "Tanding Dewasa", "Tanding Remaja", "Seni Tunggal", "Juara Umum & Perolehan Medali"],
+      "live_arena_indicators": ["Gelanggang A (Tanding)", "Gelanggang B (Tanding)", "Gelanggang C (Seni)"]
+    },
+    "news_and_announcements": {
+      "title": "Warta & Informasi Terkini",
+      "items": [
+        {"title": "Jadwal Technical Meeting & Pengundian Bagan Pertandingan", "date": "05 Oktober 2026", "badge": "Penting"},
+        {"title": "Panduan Standar Perlengkapan Body Protector & Deker Sesuai Regulasi IPSI 2026", "date": "28 September 2026", "badge": "Regulasi"},
+        {"title": "Daftar 64 Perguruan Silat yang Telah Mengonfirmasi Kontingen", "date": "20 September 2026", "badge": "Kontingen"}
+      ]
+    },
+    "gallery_section": {
+      "title": "Galeri Kilas Perjuangan",
+      "subtitle": "Momen Epik, Keringat, dan Penghormatan di Gelanggang Nusa Wiraga",
+      "layout": "Bento Grid with Asymmetric Highlights"
+    },
+    "sponsor_section": {
+      "title": "Didukung & Disponsori Oleh",
+      "subtitle": "Sinergi Bersama Memajukan Pencak Silat Indonesia",
+      "tiers": ["Sponsor Utama (Platinum)", "Mitra Pendukung (Gold)", "Official Media Partner"]
+    },
+    "admin_dashboard_view": {
+      "route": "/admin",
+      "title": "Panel Manajemen Kontingen & Pendaftar Nusa Wiraga",
+      "features": [
+        "Metrik Statistik Pendaftar (Total, Terverifikasi, Menunggu Pembayaran, Per Kategori)",
+        "Tabel Data Pendaftar Lengkap dengan Pencarian & Filter Perguruan/Kelas",
+        "Aksi Verifikasi Berkas & Status Bayar Atlet",
+        "Export Data Atlet ke CSV/Excel",
+        "Kirim Ulang Notifikasi Email / WhatsApp Quick Link"
+      ]
+    },
+    "floating_whatsapp_widget": {
+      "enabled": true,
+      "phone": "6281234567890",
+      "message": "Halo Admin Nusa Wiraga, saya ingin informasi mengenai Kejuaraan Silat Nusa Wiraga 2026.",
+      "test_id": "floating-whatsapp-btn"
+    }
+  },
+  "design_system_tokens": {
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-xl",
+      "badge": "rounded-full"
+    },
+    "shadows": {
+      "glow_gold": "0 0 25px -5px rgba(234, 179, 8, 0.35)",
+      "glow_maroon": "0 0 30px -8px rgba(128, 14, 25, 0.5)",
+      "card_ambient": "0 10px 30px -10px rgba(0, 0, 0, 0.5)"
+    },
+    "gradients": {
+      "hero_radial": "radial-gradient(circle at 50% 20%, rgba(94, 11, 19, 0.45) 0%, rgba(11, 11, 14, 0.95) 75%)",
+      "maroon_card_header": "linear-gradient(135deg, rgba(128, 14, 25, 0.4) 0%, rgba(30, 10, 15, 0.2) 100%)",
+      "gold_shimmer": "linear-gradient(90deg, #CA8A04 0%, #FACC15 50%, #CA8A04 100%)"
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. Implement the entire application in Bahasa Indonesia as requested by the user.",
+    "2. Use the primary color scheme: Dark Obsidian Neutral (#0B0B0E), Deep Maroon (#800E19 / #5E0B13), and Championship Gold (#EAB308 / #FACC15).",
+    "3. Build both the Public Portal (Hero, Profile, Categories, Schedule/Results, News, Gallery, Sponsors, WhatsApp Button) AND the Online Registration flow with dynamic validation and feedback.",
+    "4. Build the Admin Dashboard (/admin) allowing tournament officials to review, search, filter, approve/verify registrants, and see live statistics of categories and weight classes.",
+    "5. Ensure all interactive elements have explicit 'data-testid' attributes as defined in the testId requirements.",
+    "6. Provide full backend API support with FastAPI for registrant storage, status toggling, statistics endpoints, and email notification trigger mock.",
+    "7. Do not use plain Inter for headings: use Cabinet Grotesk, Outfit, or bold styled display typography with tracking-tight."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "contrast_rule": "Maintain APCA-compliant contrast for all gold text against dark maroon and obsidian backgrounds. Never use low-contrast grey on grey.",
+    "no_center_syndrome": "Use asymmetric bento grids for stats, company profile pillars, and tournament gallery.",
+    "interactive_feel": "Add framer-motion micro-interactions for button hovers, card lift on hover, modal entries, and tab transitions.",
+    "toast_notifications": "Use Sonner for registration confirmation, status change toasts in admin panel, and copy-link triggers."
+  }
+}
