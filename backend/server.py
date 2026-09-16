@@ -8,6 +8,8 @@ import json
 import uuid
 import asyncio
 import logging
+import mimetypes
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
@@ -16,7 +18,7 @@ import jwt
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -350,7 +352,7 @@ async def delete_registrant(reg_id: str, user: dict = Depends(get_current_user))
             try:
                 await delete_object(ref["file_id"])
             except Exception as e:
-                logger.error(f"Gagal menghapus berkas GridFS: {e}")
+                logger.error(f"Gagal menghapus berkas: {e}")
     try:
         await delete_sheet_row(doc["reg_number"])
     except Exception as e:
@@ -549,7 +551,7 @@ async def upload_registration_files(
             file.content_type or "application/octet-stream",
             {"reg_id": reg_id, "kind": kind},
         )
-        # Ganti berkas lama (kalau ada) supaya tidak menumpuk di GridFS
+        # Ganti berkas lama (kalau ada) supaya berkas lama tidak menumpuk
         old = existing.get(kind)
         if old and old.get("file_id"):
             await delete_object(old["file_id"])
@@ -693,7 +695,7 @@ async def delete_sponsor(sponsor_id: str, user: dict = Depends(get_current_user)
     return {"message": "Sponsor dihapus"}
 
 
-# ---------- Galeri (foto disimpan di GridFS, disajikan lewat endpoint publik) ----------
+# ---------- Galeri (foto disimpan di disk lokal, disajikan lewat endpoint publik) ----------
 GALLERY_EXT = {"jpg", "jpeg", "png", "webp"}
 
 
@@ -747,7 +749,7 @@ async def delete_gallery_item(item_id: str, user: dict = Depends(get_current_use
         try:
             await delete_object(item["file_id"])
         except Exception as e:
-            logger.error(f"Gagal menghapus gambar galeri di GridFS: {e}")
+            logger.error(f"Gagal menghapus gambar galeri: {e}")
     return {"message": "Gambar galeri dihapus"}
 
 
@@ -825,35 +827,39 @@ SHEET_HEADER = [
 ]
 SHEET_COL_LETTERS = "ABCDEFGHIJKLMNOPQ"  # 17 kolom, selaras dengan SHEET_HEADER
 
-# Berkas pendaftar disimpan di MongoDB via GridFS. Pilihan ini bekerja sama
-# di lokal maupun di Vercel (yang filesystem-nya ephemeral), ikut bersama
-# database, dan tidak butuh layanan/kunci storage pihak ketiga.
-fs_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="uploads")
+# Berkas pendaftar disimpan di disk lokal server (di luar MongoDB) supaya
+# tidak membebani kuota 512 MB tier gratis MongoDB Atlas — hosting ini sudah
+# punya storage terpisah yang jauh lebih besar untuk keperluan ini.
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploaded_files")))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def put_object(filename: str, data: bytes, content_type: str, metadata: dict) -> str:
-    """Simpan bytes ke GridFS, kembalikan id file (string)."""
-    meta = {"content_type": content_type, **metadata}
-    file_id = await fs_bucket.upload_from_stream(filename, data, metadata=meta)
-    return str(file_id)
+    """Simpan bytes ke disk lokal, kembalikan path relatif sebagai id file."""
+    def _write():
+        path = UPLOAD_DIR / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    await asyncio.to_thread(_write)
+    return filename
 
 
 async def get_object(file_id: str):
-    """Ambil bytes + content-type dari GridFS berdasarkan id file."""
-    from bson import ObjectId
-    stream = await fs_bucket.open_download_stream(ObjectId(file_id))
-    data = await stream.read()
-    content_type = (stream.metadata or {}).get("content_type", "application/octet-stream")
+    """Ambil bytes + content-type dari disk lokal berdasarkan path relatif."""
+    path = UPLOAD_DIR / file_id
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Berkas tidak ditemukan")
+    data = await asyncio.to_thread(path.read_bytes)
+    content_type = mimetypes.guess_type(file_id)[0] or "application/octet-stream"
     return data, content_type
 
 
 async def delete_object(file_id: str):
-    """Hapus file dari GridFS; abaikan kalau sudah tidak ada."""
-    from bson import ObjectId
-    from gridfs.errors import NoFile
+    """Hapus file dari disk lokal; abaikan kalau sudah tidak ada."""
+    path = UPLOAD_DIR / file_id
     try:
-        await fs_bucket.delete(ObjectId(file_id))
-    except NoFile:
+        await asyncio.to_thread(path.unlink)
+    except FileNotFoundError:
         pass
 
 
@@ -1063,7 +1069,7 @@ async def startup():
     await db.registrants.create_index("reg_number", unique=True)
     await seed_admin()
     await seed_news()
-    # Berkas disimpan di GridFS (MongoDB) — tidak ada init storage eksternal lagi.
+    # Berkas disimpan di disk lokal — tidak ada init storage eksternal lagi.
 
 
 @app.on_event("shutdown")

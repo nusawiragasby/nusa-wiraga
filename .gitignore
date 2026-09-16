@@ -89,3 +89,6 @@ credentials.json
 
 # Claude Code local session files
 .claude/
+
+# Uploaded registrant/gallery files (stored on the server disk, not in git)
+backend/uploaded_files/

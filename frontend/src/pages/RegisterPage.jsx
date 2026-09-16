@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
+import { compressImage } from "@/lib/compressImage";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
@@ -40,11 +41,12 @@ export default function RegisterPage() {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
-  const pickFile = (key) => (e) => {
+  const pickFile = (key) => async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 5 * 1024 * 1024) return toast.error("Ukuran file maksimal 5 MB");
-    setFiles({ ...files, [key]: f });
+    const compressed = await compressImage(f);
+    if (compressed.size > 5 * 1024 * 1024) return toast.error("Ukuran file maksimal 5 MB");
+    setFiles({ ...files, [key]: compressed });
   };
 
   const submit = async (e) => {
