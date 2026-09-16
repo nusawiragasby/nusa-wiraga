@@ -5,6 +5,8 @@ import os
 import io
 import csv
 import json
+import time
+import functools
 import uuid
 import asyncio
 import logging
@@ -18,6 +20,7 @@ import jwt
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr
 
@@ -296,13 +299,18 @@ async def append_registration_to_sheet_safe(doc: dict):
 
 @api_router.get("/admin/stats")
 async def admin_stats(user: dict = Depends(get_current_user)):
-    total = await db.registrants.count_documents({})
-    verified = await db.registrants.count_documents({"status": "terverifikasi"})
-    pending = await db.registrants.count_documents({"status": "menunggu"})
-    unpaid = await db.registrants.count_documents({"payment_status": "belum_bayar"})
-    pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}, {"$sort": {"count": -1}}]
-    by_category = [{"category": r["_id"], "count": r["count"]} async for r in db.registrants.aggregate(pipeline)]
-    return {"total": total, "verified": verified, "pending": pending, "unpaid": unpaid, "by_category": by_category}
+    async def by_category():
+        pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}, {"$sort": {"count": -1}}]
+        return [{"category": r["_id"], "count": r["count"]} async for r in db.registrants.aggregate(pipeline)]
+
+    total, verified, pending, unpaid, categories = await asyncio.gather(
+        db.registrants.count_documents({}),
+        db.registrants.count_documents({"status": "terverifikasi"}),
+        db.registrants.count_documents({"status": "menunggu"}),
+        db.registrants.count_documents({"payment_status": "belum_bayar"}),
+        by_category(),
+    )
+    return {"total": total, "verified": verified, "pending": pending, "unpaid": unpaid, "by_category": categories}
 
 
 @api_router.get("/admin/registrants")
@@ -611,17 +619,48 @@ async def public_registration_file(reg_id: str, kind: str):
 
 
 # ---------- Konten Publik ----------
+# Cache in-memory singkat untuk endpoint publik yang jarang berubah (hanya
+# lewat aksi admin) tapi sering diakses (tiap kunjungan beranda). Ini
+# mengurangi round-trip ke MongoDB Atlas per request, penting karena hosting
+# LiteSpeed kita membatasi jumlah proses Python bersamaan — request yang
+# selesai lebih cepat berarti proses lebih cepat bebas untuk request lain.
+_public_cache: dict = {}
+_CACHE_TTL = 30
+
+
+def cached(name: str):
+    def deco(fn):
+        @functools.wraps(fn)
+        async def wrapper():
+            entry = _public_cache.get(name)
+            now = time.monotonic()
+            if entry and now - entry[0] < _CACHE_TTL:
+                return entry[1]
+            result = await fn()
+            _public_cache[name] = (now, result)
+            return result
+        return wrapper
+    return deco
+
+
+def invalidate_cache(name: str):
+    _public_cache.pop(name, None)
+
+
 @api_router.get("/news")
+@cached("news")
 async def public_news():
     return await db.news.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
 
 
 @api_router.get("/results")
+@cached("results")
 async def public_results():
     return await db.results.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
 
 
 @api_router.get("/sponsors")
+@cached("sponsors")
 async def public_sponsors():
     return await db.sponsors.find({}, {"_id": 0}).sort("created_at", 1).to_list(200)
 
@@ -634,6 +673,7 @@ async def create_news(body: NewsInput, user: dict = Depends(get_current_user)):
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.news.insert_one(doc)
     doc.pop("_id", None)
+    invalidate_cache("news")
     return doc
 
 
@@ -642,6 +682,7 @@ async def update_news(news_id: str, body: NewsInput, user: dict = Depends(get_cu
     result = await db.news.update_one({"id": news_id}, {"$set": body.model_dump()})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Berita tidak ditemukan")
+    invalidate_cache("news")
     return await db.news.find_one({"id": news_id}, {"_id": 0})
 
 
@@ -650,6 +691,7 @@ async def delete_news(news_id: str, user: dict = Depends(get_current_user)):
     result = await db.news.delete_one({"id": news_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Berita tidak ditemukan")
+    invalidate_cache("news")
     return {"message": "Berita dihapus"}
 
 
@@ -663,6 +705,7 @@ async def create_result(body: ResultInput, user: dict = Depends(get_current_user
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.results.insert_one(doc)
     doc.pop("_id", None)
+    invalidate_cache("results")
     return doc
 
 
@@ -673,6 +716,7 @@ async def update_result(result_id: str, body: ResultInput, user: dict = Depends(
     result = await db.results.update_one({"id": result_id}, {"$set": body.model_dump()})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Data juara tidak ditemukan")
+    invalidate_cache("results")
     return await db.results.find_one({"id": result_id}, {"_id": 0})
 
 
@@ -681,6 +725,7 @@ async def delete_result(result_id: str, user: dict = Depends(get_current_user)):
     result = await db.results.delete_one({"id": result_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Data juara tidak ditemukan")
+    invalidate_cache("results")
     return {"message": "Data juara dihapus"}
 
 
@@ -696,6 +741,7 @@ async def create_sponsor(body: SponsorInput, user: dict = Depends(get_current_us
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.sponsors.insert_one(doc)
     doc.pop("_id", None)
+    invalidate_cache("sponsors")
     return doc
 
 
@@ -704,6 +750,7 @@ async def delete_sponsor(sponsor_id: str, user: dict = Depends(get_current_user)
     result = await db.sponsors.delete_one({"id": sponsor_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sponsor tidak ditemukan")
+    invalidate_cache("sponsors")
     return {"message": "Sponsor dihapus"}
 
 
@@ -712,6 +759,7 @@ GALLERY_EXT = {"jpg", "jpeg", "png", "webp"}
 
 
 @api_router.get("/gallery")
+@cached("gallery")
 async def public_gallery():
     return await db.gallery.find({}, {"_id": 0, "file_id": 0}).sort("created_at", 1).to_list(200)
 
@@ -748,6 +796,7 @@ async def create_gallery_item(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.gallery.insert_one(doc)
+    invalidate_cache("gallery")
     return {"id": item_id, "caption": doc["caption"], "created_at": doc["created_at"]}
 
 
@@ -757,6 +806,7 @@ async def delete_gallery_item(item_id: str, user: dict = Depends(get_current_use
     if not item:
         raise HTTPException(status_code=404, detail="Gambar tidak ditemukan")
     await db.gallery.delete_one({"id": item_id})
+    invalidate_cache("gallery")
     if item.get("file_id"):
         try:
             await delete_object(item["file_id"])
@@ -787,6 +837,7 @@ def _normalize_matches(matches: List[MatchInput]) -> list:
 
 
 @api_router.get("/brackets")
+@cached("brackets")
 async def public_brackets():
     return await db.brackets.find({}, {"_id": 0}).sort([("order", 1), ("created_at", 1)]).to_list(200)
 
@@ -805,6 +856,7 @@ async def create_bracket(body: BracketInput, user: dict = Depends(get_current_us
     }
     await db.brackets.insert_one(doc)
     doc.pop("_id", None)
+    invalidate_cache("brackets")
     return doc
 
 
@@ -821,6 +873,7 @@ async def update_bracket(bracket_id: str, body: BracketInput, user: dict = Depen
     result = await db.brackets.update_one({"id": bracket_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Bagan tidak ditemukan")
+    invalidate_cache("brackets")
     return await db.brackets.find_one({"id": bracket_id}, {"_id": 0})
 
 
@@ -829,6 +882,7 @@ async def delete_bracket(bracket_id: str, user: dict = Depends(get_current_user)
     result = await db.brackets.delete_one({"id": bracket_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Bagan tidak ditemukan")
+    invalidate_cache("brackets")
     return {"message": "Bagan dihapus"}
 
 
@@ -1026,6 +1080,8 @@ async def sheets_status(user: dict = Depends(get_current_user)):
 
 
 app.include_router(api_router)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
