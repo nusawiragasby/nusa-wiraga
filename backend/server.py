@@ -15,7 +15,7 @@ from typing import Optional, List
 
 import bcrypt
 import jwt
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -247,7 +247,7 @@ async def send_confirmation_email(reg: dict):
 
 
 @api_router.post("/register")
-async def register(body: RegisterInput):
+async def register(body: RegisterInput, background_tasks: BackgroundTasks):
     if "Tanding" in body.category:
         if not body.weight_class:
             raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
@@ -272,16 +272,26 @@ async def register(body: RegisterInput):
     })
     await db.registrants.insert_one(doc)
     doc.pop("_id", None)
+    # Email & sinkron Google Sheets dijalankan di background supaya form
+    # tidak menunggu panggilan API eksternal (Resend, Sheets) sebelum merespons.
+    if doc.get("email"):
+        background_tasks.add_task(send_confirmation_email_safe, doc)
+    background_tasks.add_task(append_registration_to_sheet_safe, doc)
+    return {"message": "Pendaftaran berhasil", "reg_number": reg_number, "id": doc["id"]}
+
+
+async def send_confirmation_email_safe(reg: dict):
     try:
-        if doc.get("email"):
-            await send_confirmation_email(doc)
+        await send_confirmation_email(reg)
     except Exception as e:
         logger.error(f"Gagal mengirim email konfirmasi: {e}")
+
+
+async def append_registration_to_sheet_safe(doc: dict):
     try:
         await append_registration_to_sheet(doc)
     except Exception as e:
         logger.error(f"Gagal sinkron Google Sheets: {e}")
-    return {"message": "Pendaftaran berhasil", "reg_number": reg_number, "id": doc["id"]}
 
 
 @api_router.get("/admin/stats")
@@ -318,7 +328,7 @@ async def list_registrants(
 
 
 @api_router.patch("/admin/registrants/{reg_id}")
-async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = Depends(get_current_user)):
+async def update_registrant(reg_id: str, body: RegistrantUpdate, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     update = {}
     if body.status is not None:
         if body.status not in STATUS_VALUES:
@@ -334,10 +344,7 @@ async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = De
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
     doc = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
-    try:
-        await update_sheet_row(doc)
-    except Exception as e:
-        logger.error(f"Gagal sinkron status ke Google Sheets: {e}")
+    background_tasks.add_task(update_sheet_row_safe, doc)
     return doc
 
 
@@ -528,6 +535,7 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
 @api_router.post("/register/{reg_id}/files")
 async def upload_registration_files(
     reg_id: str,
+    background_tasks: BackgroundTasks,
     data_diri: Optional[UploadFile] = File(None),
     surat_sehat: Optional[UploadFile] = File(None),
     foto: Optional[UploadFile] = File(None),
@@ -559,11 +567,15 @@ async def upload_registration_files(
     if uploads:
         await db.registrants.update_one({"id": reg_id}, {"$set": {f"files.{k}": v for k, v in uploads.items()}})
         updated = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
-        try:
-            await update_sheet_row(updated)
-        except Exception as e:
-            logger.error(f"Gagal sinkron link berkas ke Google Sheets: {e}")
+        background_tasks.add_task(update_sheet_row_safe, updated)
     return {"message": "Berkas terunggah", "files": list(uploads.keys())}
+
+
+async def update_sheet_row_safe(doc: dict):
+    try:
+        await update_sheet_row(doc)
+    except Exception as e:
+        logger.error(f"Gagal sinkron ke Google Sheets: {e}")
 
 
 @api_router.get("/admin/files/{reg_id}/{kind}")
@@ -1067,6 +1079,9 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier")
     await db.registrants.create_index("reg_number", unique=True)
+    await db.registrants.create_index("created_at")
+    await db.registrants.create_index("category")
+    await db.registrants.create_index("status")
     await seed_admin()
     await seed_news()
     # Berkas disimpan di disk lokal — tidak ada init storage eksternal lagi.
