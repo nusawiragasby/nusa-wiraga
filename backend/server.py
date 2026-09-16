@@ -1012,6 +1012,9 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000"), "http://localhost:3000"],
+    # Vercel juga menyajikan situs ini lewat domain alias & preview
+    # (mis. web-nusa-wiraga-teal.vercel.app), yang harus ikut diizinkan.
+    allow_origin_regex=r"https://(nusawiraga|web-nusa-wiraga)[a-z0-9\-]*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
