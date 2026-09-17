@@ -6,6 +6,7 @@ import io
 import csv
 import json
 import time
+import secrets
 import functools
 import uuid
 import asyncio
@@ -294,6 +295,11 @@ async def register(body: RegisterInput):
         "reg_number": reg_number,
         "status": "menunggu",
         "payment_status": "belum_bayar",
+        # Ditandai tersinkron hanya setelah barisnya benar-benar tertulis di
+        # Sheets. Penyelaras berkala memungut yang tertinggal — perlu karena
+        # LiteSpeed mematikan proses yang menganggur sebelum sinkronisasi
+        # sempat selesai.
+        "sheet_synced": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     await db.registrants.insert_one(doc)
@@ -314,6 +320,7 @@ async def send_confirmation_email_safe(reg: dict):
 async def append_registration_to_sheet_safe(doc: dict):
     try:
         await append_registration_to_sheet(doc)
+        await mark_sheet_synced(doc)
     except Exception as e:
         _sheet_meta_cache.clear()
         logger.error(f"Gagal sinkron Google Sheets: {e}")
@@ -370,6 +377,7 @@ async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = De
         update["payment_status"] = body.payment_status
     if not update:
         raise HTTPException(status_code=422, detail="Tidak ada perubahan")
+    update["sheet_synced"] = False  # dipulihkan penyelaras kalau sinkron gagal
     result = await db.registrants.update_one({"id": reg_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
@@ -594,7 +602,9 @@ async def upload_registration_files(
             await delete_object(old["file_id"])
         uploads[kind] = {"file_id": file_id, "filename": file.filename}
     if uploads:
-        await db.registrants.update_one({"id": reg_id}, {"$set": {f"files.{k}": v for k, v in uploads.items()}})
+        changes = {f"files.{k}": v for k, v in uploads.items()}
+        changes["sheet_synced"] = False
+        await db.registrants.update_one({"id": reg_id}, {"$set": changes})
         updated = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
         run_detached(update_sheet_row_safe(updated))
     return {"message": "Berkas terunggah", "files": list(uploads.keys())}
@@ -603,9 +613,15 @@ async def upload_registration_files(
 async def update_sheet_row_safe(doc: dict):
     try:
         await update_sheet_row(doc)
+        await mark_sheet_synced(doc)
     except Exception as e:
         _sheet_meta_cache.clear()
         logger.error(f"Gagal sinkron ke Google Sheets: {e}")
+
+
+async def mark_sheet_synced(doc: dict):
+    if doc.get("id"):
+        await db.registrants.update_one({"id": doc["id"]}, {"$set": {"sheet_synced": True}})
 
 
 @api_router.get("/admin/files/{reg_id}/{kind}")
@@ -1147,6 +1163,43 @@ async def delete_sheet_row(reg_number: str):
         ).execute()
 
     await asyncio.to_thread(_delete)
+
+
+SHEETS_RESYNC_KEY = os.environ.get("SHEETS_RESYNC_KEY", "")
+
+
+@api_router.post("/admin/sheets/resync")
+async def resync_sheets(request: Request, key: str = "", limit: int = 25):
+    """Kirim ulang pendaftar yang belum tercatat di Sheets.
+
+    Dipanggil cron tiap beberapa menit (pakai kunci) atau admin dari panel
+    (pakai token). Aman diulang: update_sheet_row mencari baris berdasarkan
+    nomor registrasi dulu, jadi yang sudah ada diperbarui, bukan diduplikasi.
+    """
+    if not (SHEETS_RESYNC_KEY and key and secrets.compare_digest(key, SHEETS_RESYNC_KEY)):
+        await get_current_user(request)
+
+    service, _ = get_sheets_service()
+    if not service:
+        return {"configured": False, "pending": 0, "synced": 0, "failed": 0}
+
+    pending = await db.registrants.find(
+        {"sheet_synced": {"$ne": True}}, {"_id": 0}
+    ).sort("created_at", 1).to_list(max(1, min(limit, 100)))
+
+    synced = failed = 0
+    for doc in pending:
+        try:
+            await update_sheet_row(doc)
+            await mark_sheet_synced(doc)
+            synced += 1
+        except Exception as e:
+            failed += 1
+            _sheet_meta_cache.clear()
+            logger.error(f"Penyelarasan {doc.get('reg_number')} gagal: {e}")
+    if synced or failed:
+        logger.info(f"[SHEETS] Penyelarasan: {synced} terkirim, {failed} gagal")
+    return {"configured": True, "pending": len(pending), "synced": synced, "failed": failed}
 
 
 @api_router.get("/admin/sheets/status")
