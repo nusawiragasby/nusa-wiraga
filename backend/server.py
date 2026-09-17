@@ -48,6 +48,26 @@ if RESEND_API_KEY:
 STATUS_VALUES = {"menunggu", "terverifikasi", "ditolak"}
 PAYMENT_VALUES = {"belum_bayar", "lunas"}
 
+# Kategori beregu wajib mengunggah satu pas foto per anggota, jadi kind berkas
+# foto bernomor. Kind pertama tetap bernama "foto" (bukan "foto_1") supaya
+# berkas pendaftar lama, link di Google Sheets, dan tombol admin tetap jalan.
+MAX_MEMBERS = 5
+PHOTO_KINDS = ["foto"] + [f"foto_{i}" for i in range(2, MAX_MEMBERS + 1)]
+
+
+def member_count(category: str) -> int:
+    """Jumlah nama anggota yang wajib diisi kategori ini (0 = atlet tunggal)."""
+    if "Berkelompok" in category:
+        return MAX_MEMBERS
+    if "Ganda" in category:
+        return 2
+    return 0
+
+
+def photo_kinds_for(category: str) -> List[str]:
+    """Kind pas foto yang berlaku: satu per anggota, minimal satu."""
+    return PHOTO_KINDS[:max(member_count(category), 1)]
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -280,7 +300,7 @@ async def register(body: RegisterInput):
             raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
         if not body.height_cm:
             raise HTTPException(status_code=422, detail="Tinggi badan wajib diisi untuk kategori Tanding")
-    required_members = 5 if "Berkelompok" in body.category else 2 if "Ganda" in body.category else 0
+    required_members = member_count(body.category)
     if required_members:
         names = [n.strip() for n in (body.member_names or []) if n and n.strip()]
         if len(names) != required_members:
@@ -576,15 +596,27 @@ async def upload_registration_files(
     data_diri: Optional[UploadFile] = File(None),
     surat_sehat: Optional[UploadFile] = File(None),
     foto: Optional[UploadFile] = File(None),
+    foto_2: Optional[UploadFile] = File(None),
+    foto_3: Optional[UploadFile] = File(None),
+    foto_4: Optional[UploadFile] = File(None),
+    foto_5: Optional[UploadFile] = File(None),
 ):
     reg = await db.registrants.find_one({"id": reg_id})
     if not reg:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
     existing = reg.get("files", {})
+    allowed_photos = photo_kinds_for(reg.get("category", ""))
+    incoming = [("data_diri", data_diri), ("surat_sehat", surat_sehat)]
+    incoming += list(zip(PHOTO_KINDS, (foto, foto_2, foto_3, foto_4, foto_5)))
     uploads = {}
-    for kind, file in (("data_diri", data_diri), ("surat_sehat", surat_sehat), ("foto", foto)):
+    for kind, file in incoming:
         if not file or not file.filename:
             continue
+        if kind in PHOTO_KINDS and kind not in allowed_photos:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Kategori {reg.get('category')} hanya memerlukan {len(allowed_photos)} pas foto",
+            )
         ext = file.filename.rsplit(".", 1)[-1].lower()
         if ext not in FILE_KINDS[kind]:
             raise HTTPException(status_code=422, detail=f"Format {kind} tidak didukung (PDF/JPG/PNG)")
@@ -928,8 +960,9 @@ SHEET_HEADER = [
     "No Registrasi", "Nama", "NIK/NISN", "Email", "WhatsApp", "Perguruan", "Kategori", "Kelompok Usia",
     "Kelas", "Pelatih", "Status", "Pembayaran", "Tanggal Daftar", "Tinggi Badan (cm)",
     "Foto", "KTP/NISN", "Surat Sehat",
+    *[f"Foto {i}" for i in range(2, MAX_MEMBERS + 1)],
 ]
-SHEET_COL_LETTERS = "ABCDEFGHIJKLMNOPQ"  # 17 kolom, selaras dengan SHEET_HEADER
+SHEET_COL_LETTERS = "ABCDEFGHIJKLMNOPQRSTU"  # 21 kolom, selaras dengan SHEET_HEADER
 
 # Berkas pendaftar disimpan di disk lokal server (di luar MongoDB) supaya
 # tidak membebani kuota 512 MB tier gratis MongoDB Atlas — hosting ini sudah
@@ -970,7 +1003,7 @@ async def delete_object(file_id: str):
 FILE_KINDS = {
     "data_diri": {"pdf", "jpg", "jpeg", "png"},
     "surat_sehat": {"pdf", "jpg", "jpeg", "png"},
-    "foto": {"jpg", "jpeg", "png"},
+    **{kind: {"jpg", "jpeg", "png"} for kind in PHOTO_KINDS},
 }
 
 
@@ -1000,6 +1033,8 @@ def build_sheet_row(doc: dict) -> list:
         file_link_formula(reg_id, doc, "foto", "Lihat Foto"),
         file_link_formula(reg_id, doc, "data_diri", "Lihat KTP/NISN"),
         file_link_formula(reg_id, doc, "surat_sehat", "Lihat Surat Sehat"),
+        *[file_link_formula(reg_id, doc, kind, f"Lihat Foto {i}")
+          for i, kind in enumerate(PHOTO_KINDS[1:], start=2)],
     ]
 
 

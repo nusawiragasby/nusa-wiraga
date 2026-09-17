@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage } from "@/lib/compressImage";
+import { memberCount, photoKindsFor, photoLabel } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
@@ -21,11 +22,11 @@ const INITIAL = {
   full_name: "", contingent_school: "", category: "", age_class: "", weight_class: "", height_cm: "", official_coach: "",
 };
 const INITIAL_MEMBERS = ["", "", "", ""];
-const FILE_FIELDS = [
+const DOC_FIELDS = [
   { key: "data_diri", label: "Data Diri (KK/Ijazah/Rapor)", accept: ".pdf,.jpg,.jpeg,.png" },
   { key: "surat_sehat", label: "Surat Keterangan Sehat", accept: ".pdf,.jpg,.jpeg,.png" },
-  { key: "foto", label: "Pas Foto", accept: ".jpg,.jpeg,.png" },
 ];
+const PHOTO_ACCEPT = ".jpg,.jpeg,.png";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 placeholder:text-slate-500 focus-visible:ring-amber-500";
 
@@ -36,8 +37,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const isTanding = form.category.includes("Tanding");
-  const groupSize = form.category.includes("Berkelompok") ? 5 : form.category.includes("Ganda") ? 2 : 0;
+  const groupSize = memberCount(form.category);
   const isGroup = groupSize > 0;
+  // Satu pas foto per anggota: kategori beregu minta 5 (Ganda 2), tunggal 1.
+  const photoFields = photoKindsFor(form.category).map((key, i, all) => ({
+    key, accept: PHOTO_ACCEPT, label: photoLabel(i, all.length),
+  }));
+  const fileFields = [...DOC_FIELDS, ...photoFields];
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
@@ -51,7 +57,7 @@ export default function RegisterPage() {
 
   const submit = async (e) => {
     e.preventDefault();
-    const missing = FILE_FIELDS.filter((f) => !files[f.key]);
+    const missing = fileFields.filter((f) => !files[f.key]);
     if (missing.length > 0) {
       toast.error(`Berkas wajib belum lengkap: ${missing.map((f) => f.label).join(", ")}`);
       return;
@@ -61,14 +67,14 @@ export default function RegisterPage() {
       const payload = { ...form };
       if (isGroup) payload.member_names = [form.full_name, ...members.slice(0, groupSize - 1)];
       const { data } = await api.post("/register", payload);
-      if (Object.keys(files).length > 0) {
-        try {
-          const fd = new FormData();
-          Object.entries(files).forEach(([k, f]) => f && fd.append(k, f));
-          await api.post(`/register/${data.id}/files`, fd);
-        } catch (uploadErr) {
-          toast.warning(`Pendaftaran tersimpan, tetapi berkas gagal terunggah: ${formatApiError(uploadErr)}`);
-        }
+      try {
+        // Hanya berkas yang relevan dengan kategori terpilih: foto anggota bisa
+        // tertinggal di state bila pendaftar sempat memilih kategori beregu.
+        const fd = new FormData();
+        fileFields.forEach((f) => fd.append(f.key, files[f.key]));
+        await api.post(`/register/${data.id}/files`, fd);
+      } catch (uploadErr) {
+        toast.warning(`Pendaftaran tersimpan, tetapi berkas gagal terunggah: ${formatApiError(uploadErr)}`);
       }
       setResult(data);
       toast.success("Pendaftaran berhasil dikirim!");
@@ -171,8 +177,13 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-3 sm:col-span-2">
                 <Label>Berkas Pendukung <span className="text-amber-400">(wajib)</span> — PDF/JPG/PNG, maks 5 MB per berkas</Label>
+                {isGroup && (
+                  <p className="text-xs text-slate-400" data-testid="reg-photo-hint">
+                    Kategori {form.category} wajib melampirkan pas foto tiap anggota ({groupSize} foto).
+                  </p>
+                )}
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {FILE_FIELDS.map((f) => (
+                  {fileFields.map((f) => (
                     <label key={f.key} data-testid={`reg-file-${f.key}-picker`}
                       className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-[#2E2E3A] bg-[#0B0B0E] px-3 py-4 text-center transition-colors hover:border-amber-500/40">
                       <FileUp className="h-5 w-5 text-amber-400" />

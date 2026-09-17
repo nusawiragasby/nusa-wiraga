@@ -14,6 +14,7 @@ import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { GalleryManager } from "@/components/admin/GalleryManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
+import { photoKindsFor, photoLabel } from "@/lib/registration";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
 const STATUS_LABEL = { menunggu: "Menunggu", terverifikasi: "Terverifikasi", ditolak: "Ditolak" };
@@ -307,7 +308,7 @@ export default function AdminDashboard() {
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       {r.files?.data_diri && (
                         <button type="button" onClick={() => openFile(r.id, "data_diri")}
                           data-testid={`admin-file-datadiri-${r.reg_number}`} aria-label="Berkas data diri" title="Data Diri"
@@ -322,13 +323,19 @@ export default function AdminDashboard() {
                           <HeartPulse className="h-4 w-4" />
                         </button>
                       )}
-                      {r.files?.foto && (
-                        <button type="button" onClick={() => openFile(r.id, "foto")}
-                          data-testid={`admin-file-foto-${r.reg_number}`} aria-label="Pas foto" title="Pas Foto"
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-300 hover:bg-[#1C1C24]">
+                      {photoKindsFor(r.category).map((kind, i, all) => r.files?.[kind] && (
+                        <button key={kind} type="button" onClick={() => openFile(r.id, kind)}
+                          data-testid={`admin-file-${kind.replace("_", "")}-${r.reg_number}`}
+                          aria-label={photoLabel(i, all.length)} title={photoLabel(i, all.length)}
+                          className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-300 hover:bg-[#1C1C24]">
                           <ImageIcon className="h-4 w-4" />
+                          {all.length > 1 && (
+                            <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold text-stone-900">
+                              {i + 1}
+                            </span>
+                          )}
                         </button>
-                      )}
+                      ))}
                       {r.phone_whatsapp && (
                         <a href={waAthleteLink(r.phone_whatsapp, r.full_name, r.reg_number)} target="_blank" rel="noopener noreferrer"
                           data-testid={`admin-wa-btn-${r.reg_number}`} aria-label="WhatsApp atlet"
