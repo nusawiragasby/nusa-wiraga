@@ -151,10 +151,13 @@ export default function AdminDashboard() {
     }
   };
 
-  const logout = async () => {
-    await api.post("/auth/logout").catch(() => {});
+  const logout = () => {
+    // Bersihkan sesi lokal dan pindah halaman lebih dulu; permintaan penghapus
+    // cookie menyusul. Menunggunya bisa membuat tombol terasa tidak bereaksi
+    // beberapa detik saat proses server sedang dinyalakan.
     setToken(null);
-    navigate("/admin/login");
+    api.post("/auth/logout").catch(() => {});
+    navigate("/admin/login", { replace: true });
   };
 
   return (

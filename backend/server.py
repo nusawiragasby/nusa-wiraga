@@ -195,7 +195,13 @@ async def login(body: LoginInput, request: Request, response: Response):
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
+    # Atributnya harus sama persis dengan saat cookie dibuat. Default Starlette
+    # (secure=False, samesite="lax") ditolak browser pada respons lintas-situs
+    # (frontend Vercel -> domain backend), sehingga cookie lama tidak terhapus
+    # dan admin tetap bisa masuk lagi tanpa login.
+    response.delete_cookie(
+        "access_token", path="/", secure=True, httponly=True, samesite="none"
+    )
     return {"message": "Berhasil keluar"}
 
 
