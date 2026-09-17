@@ -147,6 +147,7 @@ class RegisterInput(BaseModel):
     weight_class: Optional[str] = None
     height_cm: Optional[float] = None
     official_coach: Optional[str] = None
+    draft_token: Optional[str] = None
 
     @field_validator("height_cm", "email", mode="before")
     @classmethod
@@ -340,10 +341,21 @@ async def register(body: RegisterInput):
     existing_numbers = await db.registrants.distinct("reg_number")
     nums = [int(r.split("-")[1]) for r in existing_numbers if r and r.startswith("NW26-") and r.split("-")[1].isdigit()]
     reg_number = f"NW26-{(max(nums) + 1) if nums else 1:04d}"
+    reg_id = str(uuid.uuid4())
     doc = body.model_dump()
+    draft_token = doc.pop("draft_token", None)
+    files_map = {}
+    if draft_token:
+        try:
+            files_map = await claim_draft_files(read_draft_token(draft_token), reg_id, body.category)
+        except HTTPException:
+            # Token kedaluwarsa tidak boleh menggagalkan pendaftaran: berkasnya
+            # masih bisa menyusul lewat endpoint unggah biasa.
+            logger.info(f"Token draft tidak sah untuk {reg_number}, berkas menunggu unggahan ulang")
     doc.update({
-        "id": str(uuid.uuid4()),
+        "id": reg_id,
         "reg_number": reg_number,
+        "files": files_map,
         "status": "menunggu",
         "payment_status": "belum_bayar",
         # Ditandai tersinkron hanya setelah barisnya benar-benar tertulis di
@@ -358,7 +370,8 @@ async def register(body: RegisterInput):
     if doc.get("email"):
         run_detached(send_confirmation_email_safe(doc))
     run_detached(append_registration_to_sheet_safe(doc))
-    return {"message": "Pendaftaran berhasil", "reg_number": reg_number, "id": doc["id"]}
+    return {"message": "Pendaftaran berhasil", "reg_number": reg_number, "id": doc["id"],
+            "files": sorted(files_map)}
 
 
 async def send_confirmation_email_safe(reg: dict):
@@ -627,6 +640,121 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
 
 
 # ---------- Upload Berkas Pendaftar ----------
+DRAFT_DIR = "drafts"
+DRAFT_TTL_HOURS = 6
+
+
+async def read_valid_upload(file: UploadFile, kind: str) -> tuple:
+    """Baca berkas unggahan setelah format & ukurannya lolos."""
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in FILE_KINDS[kind]:
+        raise HTTPException(status_code=422, detail=f"Format {kind} tidak didukung (PDF/JPG/PNG/WEBP)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail=f"Ukuran {kind} maksimal 5 MB")
+    return data, ext
+
+
+def safe_filename(name: str) -> str:
+    """Nama asli berkas, dibersihkan agar aman dipakai sebagai nama file."""
+    bersih = "".join(c if c.isalnum() or c in "._-" else "_" for c in name or "")
+    return bersih[-60:] or "berkas"
+
+
+def create_draft_token(draft_id: str) -> str:
+    payload = {
+        "sub": draft_id, "type": "draft",
+        "exp": datetime.now(timezone.utc) + timedelta(hours=DRAFT_TTL_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def read_draft_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Sesi unggah kedaluwarsa, muat ulang halaman")
+    if payload.get("type") != "draft" or not payload.get("sub"):
+        raise HTTPException(status_code=401, detail="Token unggah tidak sah")
+    return payload["sub"]
+
+
+@api_router.post("/register/draft")
+async def create_draft():
+    """Izin mengunggah berkas sebelum formulirnya dikirim.
+
+    Berkas diunggah satu per satu sementara pendaftar masih mengisi formulir,
+    jadi saat tombol Kirim ditekan tidak ada lagi megabyte yang menunggu —
+    sebelumnya 15 berkas baru berangkat setelah tombol ditekan.
+    """
+    return {"token": create_draft_token(str(uuid.uuid4()))}
+
+
+@api_router.post("/register/draft/files")
+async def upload_draft_file(
+    token: str = Form(...),
+    kind: str = Form(...),
+    file: UploadFile = File(...),
+):
+    draft_id = read_draft_token(token)
+    if kind not in FILE_KINDS:
+        raise HTTPException(status_code=422, detail="Jenis berkas tidak dikenal")
+    data, ext = await read_valid_upload(file, kind)
+    # Nama asli ikut disimpan di nama berkas supaya tetap terbawa saat diklaim.
+    await put_object(
+        f"{DRAFT_DIR}/{draft_id}/{kind}__{safe_filename(file.filename)}",
+        data, file.content_type or "application/octet-stream",
+        {"draft_id": draft_id, "kind": kind},
+    )
+    return {"kind": kind, "uploaded": True}
+
+
+async def claim_draft_files(draft_id: str, reg_id: str, category: str) -> dict:
+    """Pindahkan berkas draft menjadi milik pendaftar yang baru dibuat."""
+    allowed = set(file_kinds_for(category))
+
+    def _move():
+        src_dir = UPLOAD_DIR / DRAFT_DIR / draft_id
+        hasil = {}
+        if not src_dir.is_dir():
+            return hasil
+        for path in sorted(src_dir.iterdir()):
+            kind, _, asli = path.name.partition("__")
+            if kind not in allowed:
+                continue
+            ext = asli.rsplit(".", 1)[-1].lower()
+            tujuan = UPLOAD_DIR / reg_id / f"{kind}.{ext}"
+            tujuan.parent.mkdir(parents=True, exist_ok=True)
+            path.replace(tujuan)
+            hasil[kind] = {"file_id": f"{reg_id}/{kind}.{ext}", "filename": asli}
+        return hasil
+
+    return await asyncio.to_thread(_move)
+
+
+async def purge_stale_drafts() -> int:
+    """Buang berkas draft yang tidak pernah menjadi pendaftaran.
+
+    Dipanggil penyelaras berkala; tanpa ini formulir yang ditinggalkan akan
+    menumpuk di disk.
+    """
+    def _purge():
+        root = UPLOAD_DIR / DRAFT_DIR
+        if not root.is_dir():
+            return 0
+        batas = time.time() - DRAFT_TTL_HOURS * 3600
+        jumlah = 0
+        for d in root.iterdir():
+            if not d.is_dir() or d.stat().st_mtime > batas:
+                continue
+            for f in d.iterdir():
+                f.unlink()
+            d.rmdir()
+            jumlah += 1
+        return jumlah
+
+    return await asyncio.to_thread(_purge)
+
 @api_router.post("/register/{reg_id}/files")
 async def upload_registration_files(
     reg_id: str,
@@ -665,12 +793,7 @@ async def upload_registration_files(
                 status_code=422,
                 detail=f"Kategori {reg.get('category')} hanya memerlukan berkas untuk {file_sets(reg.get('category', ''))} anggota",
             )
-        ext = file.filename.rsplit(".", 1)[-1].lower()
-        if ext not in FILE_KINDS[kind]:
-            raise HTTPException(status_code=422, detail=f"Format {kind} tidak didukung (PDF/JPG/PNG/WEBP)")
-        data = await file.read()
-        if len(data) > 5 * 1024 * 1024:
-            raise HTTPException(status_code=422, detail=f"Ukuran {kind} maksimal 5 MB")
+        data, ext = await read_valid_upload(file, kind)
         file_id = await put_object(
             f"{reg_id}/{kind}.{ext}", data,
             file.content_type or "application/octet-stream",
@@ -1379,7 +1502,11 @@ async def resync_sheets(request: Request, key: str = "", limit: int = 25):
             logger.error(f"Penyelarasan {doc.get('reg_number')} gagal: {e}")
     if synced or failed:
         logger.info(f"[SHEETS] Penyelarasan: {synced} terkirim, {failed} gagal")
-    return {"configured": True, "pending": len(pending), "synced": synced, "failed": failed}
+    dibuang = await purge_stale_drafts()
+    if dibuang:
+        logger.info(f"[DRAFT] {dibuang} formulir terbengkalai dibersihkan")
+    return {"configured": True, "pending": len(pending), "synced": synced,
+            "failed": failed, "draft_dibuang": dibuang}
 
 
 @api_router.get("/admin/sheets/status")

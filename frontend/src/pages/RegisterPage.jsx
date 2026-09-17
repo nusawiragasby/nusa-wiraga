@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { CheckCircle2, MessageCircle, Loader2, FileUp, Check } from "lucide-react";
+import { CheckCircle2, MessageCircle, Loader2, FileUp, Check, AlertTriangle } from "lucide-react";
 import Seo from "@/components/Seo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,16 +27,24 @@ const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 placeholder:text-
 
 // Satu baris pendek, bukan kotak tinggi: kategori beregu memerlukan 15 slot
 // dan versi lama membuat formulir memanjang jauh di layar ponsel.
-function FileSlot({ field, file, onPick }) {
+function FileSlot({ field, file, status, onPick }) {
+  const ikon = !file ? <FileUp className="h-4 w-4 shrink-0 text-amber-400" />
+    : status === "uploading" ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-400" />
+    : status === "error" ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+    : <Check className="h-4 w-4 shrink-0 text-amber-400" />;
+  const keterangan = !file ? field.hint
+    : status === "uploading" ? "mengunggah…"
+    : status === "error" ? "menyusul saat dikirim"
+    : file.name;
   return (
     <label data-testid={`reg-file-${field.key}-picker`}
       className={`flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2.5 transition-colors ${
         file ? "border-amber-500/50 bg-amber-500/5" : "border-[#2E2E3A] bg-[#0B0B0E] hover:border-amber-500/40"}`}>
-      {file ? <Check className="h-4 w-4 shrink-0 text-amber-400" /> : <FileUp className="h-4 w-4 shrink-0 text-amber-400" />}
+      {ikon}
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold text-slate-300">{field.label}</span>
         <span className="block truncate text-[10px] text-slate-500" data-testid={`reg-file-${field.key}-name`}>
-          {file ? file.name : field.hint}
+          {keterangan}
         </span>
       </span>
       <input type="file" accept={field.accept} className="hidden" data-testid={`reg-file-${field.key}-input`} onChange={onPick} />
@@ -48,6 +56,15 @@ export default function RegisterPage() {
   const [form, setForm] = useState(INITIAL);
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [files, setFiles] = useState({});
+  // Berkas berangkat begitu dipilih, selagi pendaftar masih mengisi formulir,
+  // supaya tombol Kirim tidak lagi menunggu belasan megabyte.
+  const [uploadState, setUploadState] = useState({});
+  const draftToken = useRef(null);
+  const uploads = useRef({});
+  // Unggahan dijalankan satu per satu. Hosting ini hanya menjaga sedikit
+  // proses Python hidup, dan request berbarengan terukur jauh lebih lambat
+  // daripada berurutan.
+  const antrian = useRef(Promise.resolve());
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
@@ -61,6 +78,11 @@ export default function RegisterPage() {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
+  const ensureDraftToken = async () => {
+    if (!draftToken.current) draftToken.current = (await api.post("/register/draft")).data.token;
+    return draftToken.current;
+  };
+
   const pickFile = (field) => async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -69,7 +91,25 @@ export default function RegisterPage() {
     const compressed = await compressImage(
       f, field.base === "foto" ? MAX_DIMENSION_PHOTO : MAX_DIMENSION_DOC);
     if (compressed.size > 5 * 1024 * 1024) return toast.error("Ukuran file maksimal 5 MB");
-    setFiles({ ...files, [field.key]: compressed });
+    // Bentuk fungsi, bukan salinan state: beberapa berkas bisa dipilih
+    // beriringan dan unggahannya selesai tidak berurutan.
+    setFiles((prev) => ({ ...prev, [field.key]: compressed }));
+    setUploadState((prev) => ({ ...prev, [field.key]: "uploading" }));
+    const kirim = antrian.current.then(async () => {
+      try {
+        const fd = new FormData();
+        fd.append("token", await ensureDraftToken());
+        fd.append("kind", field.key);
+        fd.append("file", compressed);
+        await api.post("/register/draft/files", fd);
+        setUploadState((prev) => ({ ...prev, [field.key]: "done" }));
+      } catch {
+        // Bukan kegagalan fatal: berkasnya ikut dikirim ulang saat submit.
+        setUploadState((prev) => ({ ...prev, [field.key]: "error" }));
+      }
+    });
+    antrian.current = kirim;
+    uploads.current[field.key] = kirim;
   };
 
   const submit = async (e) => {
@@ -92,17 +132,24 @@ export default function RegisterPage() {
         if (typeof payload[k] === "string" && !payload[k].trim()) delete payload[k];
       });
       if (isGroup) payload.member_names = [form.full_name, ...members.slice(0, groupSize - 1)];
+      if (draftToken.current) payload.draft_token = draftToken.current;
+      // Unggahan latar yang masih berjalan ditunggu dulu; biasanya sudah
+      // selesai jauh sebelum tombol ditekan.
+      await Promise.allSettled(Object.values(uploads.current));
       const { data } = await api.post("/register", payload);
-      try {
-        // Hanya berkas yang relevan dengan kategori terpilih: foto anggota bisa
-        // tertinggal di state bila pendaftar sempat memilih kategori beregu.
-        const fd = new FormData();
-        fileFields.forEach((f) => fd.append(f.key, files[f.key]));
-        await api.post(`/register/${data.id}/files`, fd, {
-          onUploadProgress: (e) => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
-        });
-      } catch (uploadErr) {
-        toast.warning(`Pendaftaran tersimpan, tetapi berkas gagal terunggah: ${formatApiError(uploadErr)}`);
+      // Hanya berkas yang belum sampai (unggah latar gagal, token kedaluwarsa,
+      // atau kategori sempat berganti) yang perlu dikirim di sini.
+      const tertinggal = fileFields.filter((f) => !(data.files || []).includes(f.key));
+      if (tertinggal.length > 0) {
+        try {
+          const fd = new FormData();
+          tertinggal.forEach((f) => fd.append(f.key, files[f.key]));
+          await api.post(`/register/${data.id}/files`, fd, {
+            onUploadProgress: (e) => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
+          });
+        } catch (uploadErr) {
+          toast.warning(`Pendaftaran tersimpan, tetapi berkas gagal terunggah: ${formatApiError(uploadErr)}`);
+        }
       }
       setResult(data);
       toast.success("Pendaftaran berhasil dikirim!");
@@ -209,7 +256,7 @@ export default function RegisterPage() {
                 {!isGroup ? (
                   <div className="grid gap-2 sm:grid-cols-3">
                     {fileFields.map((f) => (
-                      <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f)} />
+                      <FileSlot key={f.key} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
                     ))}
                   </div>
                 ) : (
@@ -240,7 +287,7 @@ export default function RegisterPage() {
                             <AccordionContent className="pb-3">
                               <div className="grid gap-2 sm:grid-cols-3">
                                 {fields.map((f) => (
-                                  <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f)} />
+                                  <FileSlot key={f.key} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
                                 ))}
                               </div>
                             </AccordionContent>
