@@ -61,6 +61,11 @@ def member_kinds(base: str) -> List[str]:
     return [base] + [f"{base}_{i}" for i in range(2, MAX_MEMBERS + 1)]
 
 
+def kind_for(base: str, member_index: int) -> str:
+    """Kind berkas `base` milik anggota ke-`member_index` (0-based)."""
+    return base if member_index == 0 else f"{base}_{member_index + 1}"
+
+
 ALL_FILE_KINDS = [kind for base in FILE_BASE_KINDS for kind in member_kinds(base)]
 PHOTO_KINDS = member_kinds("foto")
 
@@ -399,6 +404,8 @@ async def list_registrants(
     if search:
         query["$or"] = [
             {"full_name": {"$regex": search, "$options": "i"}},
+            # Tanpa ini, mencari anggota ke-2..5 sebuah regu tidak menemukan apa pun.
+            {"member_names": {"$regex": search, "$options": "i"}},
             {"contingent_school": {"$regex": search, "$options": "i"}},
             {"reg_number": {"$regex": search, "$options": "i"}},
         ]
@@ -554,7 +561,11 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
     }
 
     for i, r in enumerate(rows):
-        names = ", ".join(r["member_names"]) if r.get("member_names") else r.get("full_name")
+        # Kolom Nama memakai wrap_text, jadi regu ditulis sebagai daftar
+        # bernomor per baris, bukan satu deret koma yang panjang.
+        anggota = member_names_of(r)
+        names = anggota[0] if len(anggota) == 1 else "\n".join(
+            f"{n}. {nama}" for n, nama in enumerate(anggota, 1))
         status = r.get("status", "")
         payment = r.get("payment_status", "")
         row_values = [
@@ -996,12 +1007,10 @@ async def delete_bracket(bracket_id: str, user: dict = Depends(get_current_user)
 SHEET_HEADER = [
     "No Registrasi", "Nama", "NIK/NISN", "Email", "WhatsApp", "Perguruan", "Kategori", "Kelompok Usia",
     "Kelas", "Pelatih", "Status", "Pembayaran", "Tanggal Daftar", "Tinggi Badan (cm)",
-    "Foto", "KTP/NISN", "Surat Sehat",
-    # Berkas anggota 2-5 ditaruh di ujung, bukan di sebelah kolom sejenisnya,
-    # supaya kolom yang sudah tertulis di sheet tidak bergeser.
-    *[f"Foto {i}" for i in range(2, MAX_MEMBERS + 1)],
-    *[f"KTP/NISN {i}" for i in range(2, MAX_MEMBERS + 1)],
-    *[f"Surat Sehat {i}" for i in range(2, MAX_MEMBERS + 1)],
+    # Satu blok per anggota: namanya berdampingan dengan ketiga berkasnya,
+    # jadi panitia tidak perlu meloncat antar kolom yang berjauhan.
+    *[kolom for i in range(1, MAX_MEMBERS + 1)
+      for kolom in (f"Anggota {i}", f"KTP/NISN {i}", f"Surat Sehat {i}", f"Foto {i}")],
 ]
 
 
@@ -1073,24 +1082,36 @@ def file_link_formula(reg_id: str, doc: dict, kind: str, label: str) -> str:
     return f'=HYPERLINK("{url}"; "{label}")'
 
 
+def member_names_of(doc: dict) -> List[str]:
+    """Nama anggota; atlet tunggal dianggap regu beranggota satu."""
+    names = [n for n in (doc.get("member_names") or []) if n]
+    return names or [doc.get("full_name") or ""]
+
+
+def short_name(doc: dict) -> str:
+    """Satu baris ringkas untuk kolom Nama: ketua + jumlah anggota lain."""
+    names = member_names_of(doc)
+    return names[0] if len(names) == 1 else f"{names[0]} (+{len(names) - 1} anggota)"
+
+
 def build_sheet_row(doc: dict) -> list:
-    names = ", ".join(doc["member_names"]) if doc.get("member_names") else doc.get("full_name")
     reg_id = doc.get("id", "")
+    names = member_names_of(doc)
+    blok = []
+    for i in range(MAX_MEMBERS):
+        blok += [
+            names[i] if i < len(names) else "",
+            file_link_formula(reg_id, doc, kind_for("data_diri", i), "Lihat KTP/NISN"),
+            file_link_formula(reg_id, doc, kind_for("surat_sehat", i), "Lihat Surat Sehat"),
+            file_link_formula(reg_id, doc, kind_for("foto", i), "Lihat Foto"),
+        ]
     return [
-        doc.get("reg_number"), names, doc.get("nik_or_nisn") or "", doc.get("email") or "",
+        doc.get("reg_number"), short_name(doc), doc.get("nik_or_nisn") or "", doc.get("email") or "",
         doc.get("phone_whatsapp") or "", doc.get("contingent_school"), doc.get("category"),
         doc.get("age_class"), doc.get("weight_class") or "-", doc.get("official_coach") or "-",
         doc.get("status"), doc.get("payment_status"), doc.get("created_at"),
         doc.get("height_cm") or "-",
-        file_link_formula(reg_id, doc, "foto", "Lihat Foto"),
-        file_link_formula(reg_id, doc, "data_diri", "Lihat KTP/NISN"),
-        file_link_formula(reg_id, doc, "surat_sehat", "Lihat Surat Sehat"),
-        *[file_link_formula(reg_id, doc, kind, f"Lihat Foto {i}")
-          for i, kind in enumerate(PHOTO_KINDS[1:], start=2)],
-        *[file_link_formula(reg_id, doc, kind, f"Lihat KTP/NISN {i}")
-          for i, kind in enumerate(member_kinds("data_diri")[1:], start=2)],
-        *[file_link_formula(reg_id, doc, kind, f"Lihat Surat Sehat {i}")
-          for i, kind in enumerate(member_kinds("surat_sehat")[1:], start=2)],
+        *blok,
     ]
 
 
@@ -1189,7 +1210,9 @@ async def append_registration_to_sheet(doc: dict):
         ).execute().get("values", [])
         if not existing:
             _write_sheet_row(service, sheet_id, title, SHEET_HEADER, 1)
-        elif len(existing[0]) < len(SHEET_HEADER):
+        # Hanya diperpanjang bila header lama benar-benar awalan header baru;
+        # susunan yang berbeda diperbaiki menyeluruh oleh rewrite_all_sheet_rows.
+        elif existing[0] == SHEET_HEADER[:len(existing[0])] and len(existing[0]) < len(SHEET_HEADER):
             missing = SHEET_HEADER[len(existing[0]):]
             start_col = col_letter(len(existing[0]) + 1)
             service.spreadsheets().values().update(
@@ -1231,6 +1254,40 @@ async def update_sheet_row(doc: dict):
     await asyncio.to_thread(_update)
 
 
+def sheet_header_row(service, sheet_id: str, title: str) -> list:
+    got = service.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range=f"'{title}'!A1:{SHEET_LAST_COL}1"
+    ).execute().get("values", [])
+    return got[0] if got else []
+
+
+async def rewrite_all_sheet_rows() -> int:
+    """Tulis ulang header + seluruh baris dari MongoDB.
+
+    Dipakai saat susunan kolom berubah: baris lama memakai urutan kolom lama,
+    jadi memperbarui judul kolomnya saja akan membuat nilai tidak sebaris
+    dengan judulnya. Nilai lama ditimpa di tempat (tanpa menghapus rentang),
+    dan baris pendaftar yang dihapus sudah diurus delete_sheet_row.
+    """
+    service, sheet_id = get_sheets_service()
+    if not service:
+        return 0
+    docs = await db.registrants.find({}, {"_id": 0}).sort("created_at", 1).to_list(10000)
+    values = [SHEET_HEADER] + [build_sheet_row(d) for d in docs]
+
+    def _write():
+        title = _sheet_props(service, sheet_id)["title"]
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id, range=f"'{title}'!A1:{SHEET_LAST_COL}{len(values)}",
+            valueInputOption="USER_ENTERED", body={"values": values},
+        ).execute()
+
+    await asyncio.to_thread(_write)
+    await db.registrants.update_many({}, {"$set": {"sheet_synced": True}})
+    logger.info(f"[SHEETS] Susunan diperbarui: {len(docs)} baris, {len(SHEET_HEADER)} kolom")
+    return len(docs)
+
+
 async def delete_sheet_row(reg_number: str):
     service, sheet_id = get_sheets_service()
     if not service:
@@ -1270,9 +1327,18 @@ async def resync_sheets(request: Request, key: str = "", limit: int = 25):
     if not (SHEETS_RESYNC_KEY and key and secrets.compare_digest(key, SHEETS_RESYNC_KEY)):
         await get_current_user(request)
 
-    service, _ = get_sheets_service()
+    service, sheet_id = get_sheets_service()
     if not service:
         return {"configured": False, "pending": 0, "synced": 0, "failed": 0}
+
+    # Susunan kolom berubah -> tulis ulang seluruh baris sekali, karena baris
+    # lama masih memakai urutan kolom lama.
+    def _header():
+        return sheet_header_row(service, sheet_id, _sheet_props(service, sheet_id)["title"])
+
+    if await asyncio.to_thread(_header) != SHEET_HEADER:
+        ditulis = await rewrite_all_sheet_rows()
+        return {"configured": True, "relayout": ditulis, "pending": 0, "synced": ditulis, "failed": 0}
 
     pending = await db.registrants.find(
         {"sheet_synced": {"$ne": True}}, {"_id": 0}

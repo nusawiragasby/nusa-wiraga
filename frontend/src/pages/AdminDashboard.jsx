@@ -283,8 +283,16 @@ export default function AdminDashboard() {
                   <TableCell className="font-mono text-xs font-bold text-amber-400">{r.reg_number}</TableCell>
                   <TableCell>
                     <div className="text-sm font-semibold">{r.full_name}</div>
-                    {r.member_names?.length > 0 && (
-                      <div className="mt-0.5 max-w-xs text-xs text-slate-400">{r.member_names.slice(1).join(", ")}</div>
+                    {r.member_names?.length > 1 && (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <span data-testid={`admin-member-count-${r.reg_number}`}
+                          className="shrink-0 rounded-full bg-[#1C1C24] px-2 py-0.5 text-[10px] font-bold text-slate-300">
+                          {r.member_names.length} orang
+                        </span>
+                        <span className="max-w-[13rem] truncate text-xs text-slate-400" title={r.member_names.join(", ")}>
+                          {r.member_names.slice(1).join(", ")}
+                        </span>
+                      </div>
                     )}
                     <div className="text-xs text-slate-500">{r.age_class}{r.weight_class ? ` · ${r.weight_class}` : ""}{r.height_cm ? ` · ${r.height_cm} cm` : ""}</div>
                   </TableCell>
@@ -319,12 +327,11 @@ export default function AdminDashboard() {
                         const kinds = fileKindsFor(r.category);
                         const ada = kinds.filter((k) => r.files?.[k.key]).length;
                         return (
-                          <button type="button" onClick={() => setFilesOf(r)} disabled={ada === 0}
+                          <button type="button" onClick={() => setFilesOf(r)}
                             data-testid={`admin-files-btn-${r.reg_number}`} title={`Berkas ${ada}/${kinds.length}`}
                             aria-label={`Berkas pendaftar, ${ada} dari ${kinds.length} terunggah`}
-                            className={`flex h-8 items-center gap-1.5 rounded-lg border border-[#2E2E3A] px-2 text-xs font-semibold ${
-                              ada === 0 ? "cursor-not-allowed text-slate-600"
-                                : ada === kinds.length ? "text-amber-400 hover:bg-[#1C1C24]" : "text-slate-300 hover:bg-[#1C1C24]"}`}>
+                            className={`flex h-8 items-center gap-1.5 rounded-lg border border-[#2E2E3A] px-2 text-xs font-semibold hover:bg-[#1C1C24] ${
+                              ada === kinds.length ? "text-amber-400" : ada === 0 ? "text-slate-500" : "text-slate-300"}`}>
                             <FolderOpen className="h-4 w-4" />{ada}/{kinds.length}
                           </button>
                         );
