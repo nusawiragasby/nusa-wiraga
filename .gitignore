@@ -92,3 +92,6 @@ credentials.json
 
 # Uploaded registrant/gallery files (stored on the server disk, not in git)
 backend/uploaded_files/
+
+# Google service account key (lives only on the server)
+backend/google_service_account.json

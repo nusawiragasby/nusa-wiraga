@@ -961,15 +961,42 @@ def build_sheet_row(doc: dict) -> list:
     ]
 
 
-def get_sheets_service():
+SERVICE_ACCOUNT_FILE = Path(os.environ.get(
+    "GOOGLE_SERVICE_ACCOUNT_FILE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "google_service_account.json"),
+))
+
+
+def load_service_account_info() -> Optional[dict]:
+    """Kredensial service account, dari file JSON di server atau env var base64.
+
+    File didahulukan: panel hosting shared sulit diandalkan untuk menyimpan
+    nilai sepanjang JSON base64 (~3 KB) di form environment variable.
+    """
+    if SERVICE_ACCOUNT_FILE.is_file():
+        return json.loads(SERVICE_ACCOUNT_FILE.read_text())
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if raw:
+        import base64
+        return json.loads(base64.b64decode(raw).decode())
+    return None
+
+
+def get_sheets_service():
     sheet_id = os.environ.get("GOOGLE_SPREADSHEET_ID", "")
-    if not raw or not sheet_id:
+    try:
+        info = load_service_account_info()
+    except Exception as e:
+        logger.error(f"Kredensial Google tidak bisa dibaca: {e}")
+        return None, None
+    if not info or not sheet_id:
+        logger.info(
+            "[SHEETS] kredensial=%s spreadsheet_id=%s"
+            % ("ada" if info else "kosong", "ada" if sheet_id else "kosong")
+        )
         return None, None
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
-    import base64
-    info = json.loads(base64.b64decode(raw).decode())
     creds = service_account.Credentials.from_service_account_info(
         info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
