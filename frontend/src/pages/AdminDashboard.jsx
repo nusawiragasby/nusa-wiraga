@@ -282,19 +282,27 @@ export default function AdminDashboard() {
                 <TableRow key={r.id} className="border-[#2E2E3A] hover:bg-[#1C1C24]/50" data-testid={`admin-row-${r.reg_number}`}>
                   <TableCell className="font-mono text-xs font-bold text-amber-400">{r.reg_number}</TableCell>
                   <TableCell>
-                    <div className="text-sm font-semibold">{r.full_name}</div>
-                    {r.member_names?.length > 1 && (
-                      <div className="mt-0.5 flex items-center gap-1.5">
+                    {r.member_names?.length > 1 ? (
+                      <>
                         <span data-testid={`admin-member-count-${r.reg_number}`}
-                          className="shrink-0 rounded-full bg-[#1C1C24] px-2 py-0.5 text-[10px] font-bold text-slate-300">
+                          className="inline-block rounded-full bg-[#1C1C24] px-2 py-0.5 text-[10px] font-bold text-slate-300">
                           {r.member_names.length} orang
                         </span>
-                        <span className="max-w-[13rem] truncate text-xs text-slate-400" title={r.member_names.join(", ")}>
-                          {r.member_names.slice(1).join(", ")}
-                        </span>
-                      </div>
+                        {/* Semua nama ditampilkan; dipotong atau disembunyikan
+                            membuat panitia tidak bisa mencocokkan berkas. */}
+                        <ol className="mt-1 space-y-0.5" data-testid={`admin-members-${r.reg_number}`}>
+                          {r.member_names.map((n, i) => (
+                            <li key={i} className="flex gap-1.5 text-xs leading-snug">
+                              <span className="w-3 shrink-0 text-right text-slate-600">{i + 1}</span>
+                              <span className={i === 0 ? "font-semibold text-slate-100" : "text-slate-300"}>{n}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </>
+                    ) : (
+                      <div className="text-sm font-semibold">{r.full_name}</div>
                     )}
-                    <div className="text-xs text-slate-500">{r.age_class}{r.weight_class ? ` · ${r.weight_class}` : ""}{r.height_cm ? ` · ${r.height_cm} cm` : ""}</div>
+                    <div className="mt-1 text-xs text-slate-500">{r.age_class}{r.weight_class ? ` · ${r.weight_class}` : ""}{r.height_cm ? ` · ${r.height_cm} cm` : ""}</div>
                   </TableCell>
                   <TableCell className="text-sm text-slate-300">{r.contingent_school}</TableCell>
                   <TableCell className="text-sm text-slate-300">{r.category}</TableCell>

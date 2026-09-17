@@ -1005,7 +1005,7 @@ async def delete_bracket(bracket_id: str, user: dict = Depends(get_current_user)
 
 
 SHEET_HEADER = [
-    "No Registrasi", "Nama", "NIK/NISN", "Email", "WhatsApp", "Perguruan", "Kategori", "Kelompok Usia",
+    "No Registrasi", "Nama Peserta", "NIK/NISN", "Email", "WhatsApp", "Perguruan", "Kategori", "Kelompok Usia",
     "Kelas", "Pelatih", "Status", "Pembayaran", "Tanggal Daftar", "Tinggi Badan (cm)",
     # Satu blok per anggota: namanya berdampingan dengan ketiga berkasnya,
     # jadi panitia tidak perlu meloncat antar kolom yang berjauhan.
@@ -1088,10 +1088,13 @@ def member_names_of(doc: dict) -> List[str]:
     return names or [doc.get("full_name") or ""]
 
 
-def short_name(doc: dict) -> str:
-    """Satu baris ringkas untuk kolom Nama: ketua + jumlah anggota lain."""
+def names_cell(doc: dict) -> str:
+    """Seluruh nama peserta, satu per baris — sel ini di-set wrap saat sheet
+    disusun ulang, jadi semuanya terbaca tanpa perlu membuka kolom lain."""
     names = member_names_of(doc)
-    return names[0] if len(names) == 1 else f"{names[0]} (+{len(names) - 1} anggota)"
+    if len(names) == 1:
+        return names[0]
+    return "\n".join(f"{i}. {nama}" for i, nama in enumerate(names, 1))
 
 
 def build_sheet_row(doc: dict) -> list:
@@ -1106,7 +1109,7 @@ def build_sheet_row(doc: dict) -> list:
             file_link_formula(reg_id, doc, kind_for("foto", i), "Lihat Foto"),
         ]
     return [
-        doc.get("reg_number"), short_name(doc), doc.get("nik_or_nisn") or "", doc.get("email") or "",
+        doc.get("reg_number"), names_cell(doc), doc.get("nik_or_nisn") or "", doc.get("email") or "",
         doc.get("phone_whatsapp") or "", doc.get("contingent_school"), doc.get("category"),
         doc.get("age_class"), doc.get("weight_class") or "-", doc.get("official_coach") or "-",
         doc.get("status"), doc.get("payment_status"), doc.get("created_at"),
@@ -1276,11 +1279,28 @@ async def rewrite_all_sheet_rows() -> int:
     values = [SHEET_HEADER] + [build_sheet_row(d) for d in docs]
 
     def _write():
-        title = _sheet_props(service, sheet_id)["title"]
+        props = _sheet_props(service, sheet_id)
+        title, gid = props["title"], props["sheetId"]
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id, range=f"'{title}'!A1:{SHEET_LAST_COL}{len(values)}",
             valueInputOption="USER_ENTERED", body={"values": values},
         ).execute()
+        # Tanpa wrap, sel berisi beberapa nama hanya menampilkan baris pertama.
+        nama_kolom = {"sheetId": gid, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 2}
+        service.spreadsheets().batchUpdate(spreadsheetId=sheet_id, body={"requests": [
+            {"repeatCell": {
+                "range": {"sheetId": gid, "startColumnIndex": 1, "endColumnIndex": 2},
+                "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"}},
+                "fields": "userEnteredFormat(wrapStrategy,verticalAlignment)",
+            }},
+            {"updateDimensionProperties": {
+                "range": nama_kolom, "properties": {"pixelSize": 230}, "fields": "pixelSize",
+            }},
+            {"updateSheetProperties": {
+                "properties": {"sheetId": gid, "gridProperties": {"frozenRowCount": 1, "frozenColumnCount": 1}},
+                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+            }},
+        ]}).execute()
 
     await asyncio.to_thread(_write)
     await db.registrants.update_many({}, {"$set": {"sheet_synced": True}})
