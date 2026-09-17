@@ -1007,6 +1007,30 @@ def get_sheets_service():
     return build("sheets", "v4", credentials=creds), sheet_id
 
 
+def _first_empty_row(service, sheet_id: str, title: str) -> int:
+    """Baris kosong pertama di kolom A, dihitung mulai baris 2.
+
+    Sengaja tidak memakai values().append(): Google menentukan sendiri di mana
+    "tabel" berakhir, dan baris kosong yang masih terformat (mis. sisa struktur
+    Table) ikut terhitung — dulu ini membuat data mulai di baris 11.
+    """
+    col = service.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range=f"'{title}'!A:A"
+    ).execute().get("values", [])
+    for i in range(1, len(col)):
+        if not col[i] or not str(col[i][0]).strip():
+            return i + 1
+    return max(len(col) + 1, 2)
+
+
+def _write_sheet_row(service, sheet_id: str, title: str, values: list, row_idx: int):
+    last_col = SHEET_COL_LETTERS[len(SHEET_HEADER) - 1]
+    service.spreadsheets().values().update(
+        spreadsheetId=sheet_id, range=f"'{title}'!A{row_idx}:{last_col}{row_idx}",
+        valueInputOption="USER_ENTERED", body={"values": [values]},
+    ).execute()
+
+
 async def append_registration_to_sheet(doc: dict):
     service, sheet_id = get_sheets_service()
     if not service:
@@ -1021,18 +1045,17 @@ async def append_registration_to_sheet(doc: dict):
         existing = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{title}'!A1:{last_col}1"
         ).execute().get("values", [])
-        if existing and len(existing[0]) < len(SHEET_HEADER):
+        if not existing:
+            _write_sheet_row(service, sheet_id, title, SHEET_HEADER, 1)
+        elif len(existing[0]) < len(SHEET_HEADER):
             missing = SHEET_HEADER[len(existing[0]):]
             start_col = SHEET_COL_LETTERS[len(existing[0])]
             service.spreadsheets().values().update(
                 spreadsheetId=sheet_id, range=f"'{title}'!{start_col}1",
                 valueInputOption="RAW", body={"values": [missing]},
             ).execute()
-        values = [row] if existing else [SHEET_HEADER, row]
-        service.spreadsheets().values().append(
-            spreadsheetId=sheet_id, range=f"'{title}'!A1",
-            valueInputOption="USER_ENTERED", body={"values": values},
-        ).execute()
+        _write_sheet_row(service, sheet_id, title, row,
+                         _first_empty_row(service, sheet_id, title))
 
     await asyncio.to_thread(_append)
 
@@ -1051,10 +1074,8 @@ async def update_sheet_row(doc: dict):
         row_idx = next((i + 1 for i, r in enumerate(col) if r and r[0] == doc["reg_number"]), None)
         if not row_idx:
             logger.info(f"[SHEETS] Baris {doc['reg_number']} tidak ditemukan, ditambahkan sebagai baris baru")
-            service.spreadsheets().values().append(
-                spreadsheetId=sheet_id, range=f"'{title}'!A1",
-                valueInputOption="USER_ENTERED", body={"values": [build_sheet_row(doc)]},
-            ).execute()
+            _write_sheet_row(service, sheet_id, title, build_sheet_row(doc),
+                             _first_empty_row(service, sheet_id, title))
             return
         # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
         # (dipanggil baik saat admin ubah status maupun saat berkas baru diunggah).
