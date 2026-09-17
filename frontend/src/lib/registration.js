@@ -5,9 +5,9 @@
 export const MAX_MEMBERS = 5;
 
 export const FILE_BASES = [
-  { base: "data_diri", label: "Data Diri", hint: "KK/Ijazah/Rapor", accept: ".pdf,.jpg,.jpeg,.png" },
-  { base: "surat_sehat", label: "Surat Sehat", hint: "Keterangan sehat", accept: ".pdf,.jpg,.jpeg,.png" },
-  { base: "foto", label: "Pas Foto", hint: "JPG/PNG", accept: ".jpg,.jpeg,.png" },
+  { base: "data_diri", label: "Data Diri", hint: "KK/Ijazah/Rapor", accept: ".pdf,.jpg,.jpeg,.png,.webp" },
+  { base: "surat_sehat", label: "Surat Sehat", hint: "Keterangan sehat", accept: ".pdf,.jpg,.jpeg,.png,.webp" },
+  { base: "foto", label: "Pas Foto", hint: "JPG/PNG", accept: ".jpg,.jpeg,.png,.webp" },
 ];
 
 // Berkas anggota pertama tetap tanpa akhiran (data_diri, surat_sehat, foto)

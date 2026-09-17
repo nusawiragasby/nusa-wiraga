@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
-import { compressImage } from "@/lib/compressImage";
+import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
 import { fileKindsFor, fileSetCount, memberCount, memberLabel } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
@@ -49,6 +49,7 @@ export default function RegisterPage() {
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
@@ -60,12 +61,15 @@ export default function RegisterPage() {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
-  const pickFile = (key) => async (e) => {
+  const pickFile = (field) => async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const compressed = await compressImage(f);
+    // Pas foto boleh jauh lebih kecil daripada berkas dokumen yang tulisannya
+    // harus tetap terbaca; ukuran berkas menentukan lama submit.
+    const compressed = await compressImage(
+      f, field.base === "foto" ? MAX_DIMENSION_PHOTO : MAX_DIMENSION_DOC);
     if (compressed.size > 5 * 1024 * 1024) return toast.error("Ukuran file maksimal 5 MB");
-    setFiles({ ...files, [key]: compressed });
+    setFiles({ ...files, [field.key]: compressed });
   };
 
   const submit = async (e) => {
@@ -78,6 +82,7 @@ export default function RegisterPage() {
       return;
     }
     setLoading(true);
+    setProgress(0);
     try {
       const payload = { ...form };
       // Field kosong dibuang, bukan dikirim sebagai "": tinggi badan bertipe
@@ -93,7 +98,9 @@ export default function RegisterPage() {
         // tertinggal di state bila pendaftar sempat memilih kategori beregu.
         const fd = new FormData();
         fileFields.forEach((f) => fd.append(f.key, files[f.key]));
-        await api.post(`/register/${data.id}/files`, fd);
+        await api.post(`/register/${data.id}/files`, fd, {
+          onUploadProgress: (e) => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
+        });
       } catch (uploadErr) {
         toast.warning(`Pendaftaran tersimpan, tetapi berkas gagal terunggah: ${formatApiError(uploadErr)}`);
       }
@@ -103,6 +110,7 @@ export default function RegisterPage() {
       toast.error(formatApiError(err));
     } finally {
       setLoading(false);
+      setProgress(0);
     }
   };
 
@@ -201,7 +209,7 @@ export default function RegisterPage() {
                 {!isGroup ? (
                   <div className="grid gap-2 sm:grid-cols-3">
                     {fileFields.map((f) => (
-                      <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f.key)} />
+                      <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f)} />
                     ))}
                   </div>
                 ) : (
@@ -232,7 +240,7 @@ export default function RegisterPage() {
                             <AccordionContent className="pb-3">
                               <div className="grid gap-2 sm:grid-cols-3">
                                 {fields.map((f) => (
-                                  <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f.key)} />
+                                  <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f)} />
                                 ))}
                               </div>
                             </AccordionContent>
@@ -246,7 +254,10 @@ export default function RegisterPage() {
               <div className="sm:col-span-2">
                 <Button type="submit" disabled={loading} data-testid="reg-submit-btn"
                   className="h-12 w-full rounded-xl bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 font-display text-base font-extrabold text-stone-900 hover:opacity-90">
-                  {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Mengirim...</> : "Kirim Pendaftaran"}
+                  {loading ? (
+                    <><Loader2 className="h-5 w-5 animate-spin" />
+                      {progress > 0 && progress < 100 ? `Mengunggah berkas ${progress}%` : "Mengirim..."}</>
+                  ) : "Kirim Pendaftaran"}
                 </Button>
               </div>
             </form>

@@ -667,7 +667,7 @@ async def upload_registration_files(
             )
         ext = file.filename.rsplit(".", 1)[-1].lower()
         if ext not in FILE_KINDS[kind]:
-            raise HTTPException(status_code=422, detail=f"Format {kind} tidak didukung (PDF/JPG/PNG)")
+            raise HTTPException(status_code=422, detail=f"Format {kind} tidak didukung (PDF/JPG/PNG/WEBP)")
         data = await file.read()
         if len(data) > 5 * 1024 * 1024:
             raise HTTPException(status_code=422, detail=f"Ukuran {kind} maksimal 5 MB")
@@ -1061,10 +1061,13 @@ async def delete_object(file_id: str):
         pass
 
 
+# webp diterima karena formulir mengompresi gambar ke webp bila browsernya
+# mampu — ~30% lebih kecil daripada JPEG pada mutu setara, dan unggahan yang
+# lebih kecil adalah penentu utama lamanya proses submit.
 FILE_KINDS = {
-    **{kind: {"pdf", "jpg", "jpeg", "png"} for kind in member_kinds("data_diri")},
-    **{kind: {"pdf", "jpg", "jpeg", "png"} for kind in member_kinds("surat_sehat")},
-    **{kind: {"jpg", "jpeg", "png"} for kind in PHOTO_KINDS},
+    **{kind: {"pdf", "jpg", "jpeg", "png", "webp"} for kind in member_kinds("data_diri")},
+    **{kind: {"pdf", "jpg", "jpeg", "png", "webp"} for kind in member_kinds("surat_sehat")},
+    **{kind: {"jpg", "jpeg", "png", "webp"} for kind in PHOTO_KINDS},
 }
 
 
