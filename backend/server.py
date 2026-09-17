@@ -1033,6 +1033,7 @@ def _sheet_props(service, sheet_id: str) -> dict:
     if not _sheet_meta_cache:
         meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
         _sheet_meta_cache.update(meta["sheets"][0]["properties"])
+        _sheet_meta_cache["spreadsheet_title"] = meta.get("properties", {}).get("title")
     return _sheet_meta_cache
 
 
@@ -1148,11 +1149,10 @@ async def sheets_status(user: dict = Depends(get_current_user)):
     if not service:
         return {"configured": False, "connected": False}
     try:
-        meta = await asyncio.to_thread(
-            lambda: service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        )
-        return {"configured": True, "connected": True, "sheet_title": meta.get("properties", {}).get("title")}
+        props = await asyncio.to_thread(_sheet_props, service, sheet_id)
+        return {"configured": True, "connected": True, "sheet_title": props.get("spreadsheet_title")}
     except Exception as e:
+        _sheet_meta_cache.clear()
         logger.error(f"Cek status Sheets gagal: {e}")
         return {"configured": True, "connected": False}
 

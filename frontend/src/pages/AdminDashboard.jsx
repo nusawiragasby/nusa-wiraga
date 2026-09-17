@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Users, CheckCircle2, Clock, Wallet, Download, LogOut, Search, Trash2, MessageCircle, Loader2, Sheet, FileText, HeartPulse, Image as ImageIcon } from "lucide-react";
@@ -54,11 +54,13 @@ export default function AdminDashboard() {
         category: category === "semua" ? undefined : category,
         status: status === "semua" ? undefined : status,
       };
-      const [s, r] = await Promise.all([
-        api.get("/admin/stats"),
-        api.get("/admin/registrants", { params }),
-      ]);
+      // Berurutan, bukan Promise.all: hosting ini hanya menjaga satu proses
+      // Python tetap hidup, jadi request paralel memaksa proses baru dinyalakan
+      // (~3 detik per proses). Antre di satu proses yang sudah panas jauh lebih
+      // cepat daripada menyalakan proses tambahan.
+      const s = await api.get("/admin/stats");
       setStats(s.data);
+      const r = await api.get("/admin/registrants", { params });
       setRows(r.data);
     } catch (err) {
       if (err?.response?.status === 401) navigate("/admin/login");
@@ -68,19 +70,38 @@ export default function AdminDashboard() {
     }
   }, [search, category, status, navigate]);
 
-  useEffect(() => {
-    api.get("/auth/me").then((res) => setMe(res.data)).catch(() => navigate("/admin/login"));
-  }, [navigate]);
-
   const [sheets, setSheets] = useState(null);
-  useEffect(() => {
-    api.get("/admin/sheets/status").then((r) => setSheets(r.data)).catch(() => {});
-  }, []);
+  const firstLoad = useRef(true);
 
   useEffect(() => {
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
-  }, [load]);
+    // Muat tabel lebih dulu tanpa jeda, lalu data pelengkap menyusul satu per
+    // satu. Jeda 300 ms hanya untuk menahan ketikan di kolom pencarian.
+    if (!firstLoad.current) {
+      const t = setTimeout(load, 300);
+      return () => clearTimeout(t);
+    }
+    firstLoad.current = false;
+    let cancelled = false;
+    (async () => {
+      await load();
+      if (cancelled) return;
+      try {
+        setMe((await api.get("/auth/me")).data);
+      } catch {
+        navigate("/admin/login");
+        return;
+      }
+      if (cancelled) return;
+      try {
+        setSheets((await api.get("/admin/sheets/status")).data);
+      } catch {
+        /* indikator Sheets tidak wajib */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load, navigate]);
 
   const updateStatus = async (id, patch, successMsg) => {
     try {
