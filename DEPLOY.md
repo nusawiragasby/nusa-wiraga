@@ -52,6 +52,7 @@ Nilai env var ada di `backend/.env` (tidak ikut ke git). Siapkan file itu saat m
 | `JWT_SECRET` | Render | dari `backend/.env` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Render | dari `backend/.env` |
 | `FRONTEND_URL` | Render | URL Vercel (langkah 3) |
+| `BACKEND_URL` | Render | URL backend itu sendiri, mis. `https://nusawiraga.my.id` — dipakai untuk link berkas di Google Sheets; kalau kosong, link-nya mengarah ke `localhost` dan tidak bisa dibuka siapa pun |
 | `REACT_APP_BACKEND_URL` | Vercel | URL Render (langkah 2.4) |
 
 Kalau nanti mau pakai domain sendiri, arahkan domain ke Vercel (frontend) dan subdomain mis. `api.` ke Render (backend), lalu perbarui kedua URL di atas.

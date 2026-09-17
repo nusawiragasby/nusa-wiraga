@@ -941,7 +941,11 @@ def file_link_formula(reg_id: str, doc: dict, kind: str, label: str) -> str:
     ref = (doc.get("files") or {}).get(kind)
     if not ref or not ref.get("file_id"):
         return ""
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
+    backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+    if not backend_url:
+        # Tanpa ini link di Sheets menunjuk ke localhost pembuka, bukan ke server.
+        logger.warning("BACKEND_URL belum diisi — link berkas di Google Sheets tidak akan bisa dibuka")
+        backend_url = "http://localhost:8000"
     url = f"{backend_url}/api/files/{reg_id}/{kind}/public"
     return f'=HYPERLINK("{url}"; "{label}")'
 
