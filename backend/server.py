@@ -17,7 +17,7 @@ from typing import Optional, List
 
 import bcrypt
 import jwt
-from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Request, Response, Depends, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -249,8 +249,25 @@ async def send_confirmation_email(reg: dict):
     await asyncio.to_thread(resend.Emails.send, params)
 
 
+_detached_tasks: set = set()
+
+
+def run_detached(coro):
+    """Jalankan di luar siklus request supaya pendaftar tidak ikut menunggu.
+
+    BackgroundTasks milik FastAPI tidak cukup di hosting ini: adapter
+    ASGI->WSGI (a2wsgi di atas LiteSpeed) baru melepas respons setelah seluruh
+    panggilan ASGI selesai, termasuk background task-nya — jadi pendaftar tetap
+    menunggu email dan sinkronisasi Sheets (~4 detik). create_task melepasnya
+    ke event loop adapter, yang tetap hidup setelah respons terkirim.
+    """
+    task = asyncio.create_task(coro)
+    _detached_tasks.add(task)  # tanpa referensi ini task bisa kena garbage collector
+    task.add_done_callback(_detached_tasks.discard)
+
+
 @api_router.post("/register")
-async def register(body: RegisterInput, background_tasks: BackgroundTasks):
+async def register(body: RegisterInput):
     if "Tanding" in body.category:
         if not body.weight_class:
             raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
@@ -275,11 +292,9 @@ async def register(body: RegisterInput, background_tasks: BackgroundTasks):
     })
     await db.registrants.insert_one(doc)
     doc.pop("_id", None)
-    # Email & sinkron Google Sheets dijalankan di background supaya form
-    # tidak menunggu panggilan API eksternal (Resend, Sheets) sebelum merespons.
     if doc.get("email"):
-        background_tasks.add_task(send_confirmation_email_safe, doc)
-    background_tasks.add_task(append_registration_to_sheet_safe, doc)
+        run_detached(send_confirmation_email_safe(doc))
+    run_detached(append_registration_to_sheet_safe(doc))
     return {"message": "Pendaftaran berhasil", "reg_number": reg_number, "id": doc["id"]}
 
 
@@ -294,6 +309,7 @@ async def append_registration_to_sheet_safe(doc: dict):
     try:
         await append_registration_to_sheet(doc)
     except Exception as e:
+        _sheet_meta_cache.clear()
         logger.error(f"Gagal sinkron Google Sheets: {e}")
 
 
@@ -336,7 +352,7 @@ async def list_registrants(
 
 
 @api_router.patch("/admin/registrants/{reg_id}")
-async def update_registrant(reg_id: str, body: RegistrantUpdate, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = Depends(get_current_user)):
     update = {}
     if body.status is not None:
         if body.status not in STATUS_VALUES:
@@ -352,7 +368,7 @@ async def update_registrant(reg_id: str, body: RegistrantUpdate, background_task
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
     doc = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
-    background_tasks.add_task(update_sheet_row_safe, doc)
+    run_detached(update_sheet_row_safe(doc))
     return doc
 
 
@@ -543,7 +559,6 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
 @api_router.post("/register/{reg_id}/files")
 async def upload_registration_files(
     reg_id: str,
-    background_tasks: BackgroundTasks,
     data_diri: Optional[UploadFile] = File(None),
     surat_sehat: Optional[UploadFile] = File(None),
     foto: Optional[UploadFile] = File(None),
@@ -575,7 +590,7 @@ async def upload_registration_files(
     if uploads:
         await db.registrants.update_one({"id": reg_id}, {"$set": {f"files.{k}": v for k, v in uploads.items()}})
         updated = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
-        background_tasks.add_task(update_sheet_row_safe, updated)
+        run_detached(update_sheet_row_safe(updated))
     return {"message": "Berkas terunggah", "files": list(uploads.keys())}
 
 
@@ -583,6 +598,7 @@ async def update_sheet_row_safe(doc: dict):
     try:
         await update_sheet_row(doc)
     except Exception as e:
+        _sheet_meta_cache.clear()
         logger.error(f"Gagal sinkron ke Google Sheets: {e}")
 
 
@@ -1007,6 +1023,19 @@ def get_sheets_service():
     return build("sheets", "v4", credentials=creds), sheet_id
 
 
+_sheet_meta_cache: dict = {}
+
+
+def _sheet_props(service, sheet_id: str) -> dict:
+    """Judul & id tab pertama, di-cache: panggilan ini ~2 detik, dan dulu
+    dijalankan ulang pada setiap sinkronisasi. Cache dibuang kalau sinkronisasi
+    gagal, supaya tab yang di-rename tidak bikin macet sampai restart."""
+    if not _sheet_meta_cache:
+        meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        _sheet_meta_cache.update(meta["sheets"][0]["properties"])
+    return _sheet_meta_cache
+
+
 def _first_empty_row(service, sheet_id: str, title: str) -> int:
     """Baris kosong pertama di kolom A, dihitung mulai baris 2.
 
@@ -1040,8 +1069,7 @@ async def append_registration_to_sheet(doc: dict):
     last_col = SHEET_COL_LETTERS[len(SHEET_HEADER) - 1]
 
     def _append():
-        meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        title = meta["sheets"][0]["properties"]["title"]
+        title = _sheet_props(service, sheet_id)["title"]
         existing = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{title}'!A1:{last_col}1"
         ).execute().get("values", [])
@@ -1066,8 +1094,7 @@ async def update_sheet_row(doc: dict):
         return
 
     def _update():
-        meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        title = meta["sheets"][0]["properties"]["title"]
+        title = _sheet_props(service, sheet_id)["title"]
         col = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{title}'!A:A"
         ).execute().get("values", [])
@@ -1096,8 +1123,7 @@ async def delete_sheet_row(reg_number: str):
         return
 
     def _delete():
-        meta = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        sheet = meta["sheets"][0]["properties"]
+        sheet = _sheet_props(service, sheet_id)
         col = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{sheet['title']}'!A:A"
         ).execute().get("values", [])
