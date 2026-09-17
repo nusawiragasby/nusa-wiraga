@@ -176,7 +176,7 @@ export default function RegisterPage() {
               Satu Langkah Menuju <span className="text-gold-gradient">Gelanggang Juara</span>
             </h1>
             <ol className="mt-8 space-y-4">
-              {["Isi formulir data atlet & kontingen", "Panitia menghubungi via WhatsApp untuk pembayaran", "Verifikasi berkas & terbit nomor undian"].map((s, i) => (
+              {["Isi formulir data atlet & kontingen", "Hubungi panitia via WhatsApp untuk pembayaran", "Verifikasi berkas & terbit nomor undian"].map((s, i) => (
                 <li key={s} className="flex items-start gap-3 text-sm text-slate-200">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-extrabold text-stone-900">{i + 1}</span>
                   {s}
@@ -191,7 +191,7 @@ export default function RegisterPage() {
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl">
             <Link to="/" className="text-sm text-slate-400 hover:text-amber-400" data-testid="register-back-link">&larr; Kembali ke Beranda</Link>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight sm:text-3xl">Formulir Pendaftaran Atlet</h2>
-            <p className="mt-2 text-sm text-slate-400">Lengkapi data berikut. Panitia akan menghubungi kontingen Anda untuk verifikasi pembayaran & berkas.</p>
+            <p className="mt-2 text-sm text-slate-400">Lengkapi data berikut, lalu hubungi panitia via WhatsApp untuk verifikasi pembayaran & berkas.</p>
             <form onSubmit={submit} className="mt-8 grid gap-5 sm:grid-cols-2" data-testid="register-form">
               <div className="space-y-2">
                 <Label htmlFor="full_name">{isGroup ? `Nama Anggota 1${groupSize === 5 ? " (Ketua Regu)" : ""}` : "Nama Lengkap Atlet"}</Label>
@@ -320,8 +320,8 @@ export default function RegisterPage() {
             </div>
             <DialogTitle className="text-center font-display text-xl">Pendaftaran Berhasil Dikirim!</DialogTitle>
             <DialogDescription className="text-center text-slate-400">
-              Nomor registrasi unik Anda telah dibuat. Simpan nomor ini — panitia akan
-              menghubungi kontingen Anda untuk verifikasi pembayaran & berkas.
+              Nomor registrasi unik Anda telah dibuat. Simpan nomor ini, lalu hubungi
+              panitia via WhatsApp untuk verifikasi pembayaran & berkas.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-2xl border border-amber-500/30 bg-[#0B0B0E] p-5 text-center">

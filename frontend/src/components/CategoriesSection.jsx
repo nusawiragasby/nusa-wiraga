@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { Swords, User, Users, Banknote } from "lucide-react";
 
 const CATEGORIES = [
-  { icon: Swords, name: "Tanding Putra / Putri", desc: "Kelas A - F dan Kelas Bebas, usia dini hingga dewasa.", fee: "Rp 175.000 / atlet" },
-  { icon: User, name: "Seni Tunggal", desc: "Jurus wajib tunggal putra & putri dengan senjata.", fee: "Rp 175.000 / atlet" },
-  { icon: Users, name: "Seni Ganda", desc: "Koreografi jurus berpasangan dengan serang bela.", fee: "Rp 175.000 / pasangan" },
-  { icon: Users, name: "Seni Berkelompok (Jurus Baku)", desc: "Kekompakan regu dalam jurus baku.", fee: "Rp 175.000 / regu" },
+  { icon: Swords, name: "Tanding Putra / Putri", desc: "Kelas A - F dan Kelas Bebas, usia dini hingga dewasa.", fee: "Rp 160.000 / atlet" },
+  { icon: User, name: "Seni Tunggal", desc: "Jurus wajib tunggal putra & putri dengan senjata.", fee: "Rp 160.000 / atlet" },
+  { icon: Users, name: "Seni Ganda", desc: "Koreografi jurus berpasangan dengan serang bela.", fee: "Rp 160.000 / pasangan" },
+  { icon: Users, name: "Seni Berkelompok (Jurus Baku)", desc: "Kekompakan regu dalam jurus baku.", fee: "Rp 160.000 / regu" },
 ];
 
 export const CategoriesSection = () => (
@@ -37,8 +37,8 @@ export const CategoriesSection = () => (
         <div>
           <h3 className="text-lg font-bold">Pembayaran & Verifikasi</h3>
           <p className="mt-1 max-w-xl text-sm text-slate-300">
-            Setelah mendaftar, panitia akan menghubungi Anda via WhatsApp untuk instruksi pembayaran
-            dan verifikasi berkas (KK/ijazah, pas foto, dan surat keterangan perguruan).
+            Setelah mendaftar, hubungi panitia via WhatsApp untuk instruksi pembayaran
+            dan verifikasi berkas (KK/ijazah, pas foto, dan surat keterangan sehat).
           </p>
         </div>
         <Link to="/daftar" data-testid="categories-register-cta"

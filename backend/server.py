@@ -287,7 +287,7 @@ def build_confirmation_html(reg: dict) -> str:
           <tr><td style="padding:24px;">
             <p style="color:#F8FAFC;font-size:15px;margin:0 0 16px;">Halo <b>{reg['full_name']}</b>, pendaftaran Anda telah kami terima.</p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1C1C24;border-radius:12px;">{rows}</table>
-            <p style="color:#94A3B8;font-size:13px;margin:16px 0 0;">Simpan nomor registrasi Anda. Panitia akan menghubungi melalui WhatsApp untuk verifikasi pembayaran dan berkas.</p>
+            <p style="color:#94A3B8;font-size:13px;margin:16px 0 0;">Simpan nomor registrasi Anda, lalu hubungi panitia melalui WhatsApp untuk verifikasi pembayaran dan berkas.</p>
           </td></tr>
           <tr><td style="padding:16px;text-align:center;color:#64748B;font-size:11px;border-top:1px solid #2E2E3A;">Panitia Nusa Wiraga &bull; Kaza Mall, Surabaya</td></tr>
         </table>
