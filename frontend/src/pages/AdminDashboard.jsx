@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Users, CheckCircle2, Clock, Wallet, Download, LogOut, Search, Trash2, MessageCircle, Loader2, Sheet, FileText, HeartPulse, Image as ImageIcon } from "lucide-react";
+import { Users, CheckCircle2, Clock, Wallet, Download, LogOut, Search, Trash2, MessageCircle, Loader2, Sheet, FileText, HeartPulse, Image as ImageIcon, FolderOpen } from "lucide-react";
 import Seo from "@/components/Seo";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { NewsManager } from "@/components/admin/NewsManager";
 import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { GalleryManager } from "@/components/admin/GalleryManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
-import { photoKindsFor, photoLabel } from "@/lib/registration";
+import { FILE_BASES, fileKindsFor, fileSetCount, kindFor, memberLabel } from "@/lib/registration";
+
+const KIND_ICON = { data_diri: FileText, surat_sehat: HeartPulse, foto: ImageIcon };
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
 const STATUS_LABEL = { menunggu: "Menunggu", terverifikasi: "Terverifikasi", ditolak: "Ditolak" };
@@ -72,6 +75,9 @@ export default function AdminDashboard() {
   }, [search, category, status, navigate]);
 
   const [sheets, setSheets] = useState(null);
+  // Kategori beregu bisa punya 15 berkas; daftarnya dibuka di dialog, bukan
+  // dijejalkan sebagai ikon di sel aksi tabel.
+  const [filesOf, setFilesOf] = useState(null);
   const firstLoad = useRef(true);
 
   useEffect(() => {
@@ -309,33 +315,20 @@ export default function AdminDashboard() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-wrap justify-end gap-2">
-                      {r.files?.data_diri && (
-                        <button type="button" onClick={() => openFile(r.id, "data_diri")}
-                          data-testid={`admin-file-datadiri-${r.reg_number}`} aria-label="Berkas data diri" title="Data Diri"
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-300 hover:bg-[#1C1C24]">
-                          <FileText className="h-4 w-4" />
-                        </button>
-                      )}
-                      {r.files?.surat_sehat && (
-                        <button type="button" onClick={() => openFile(r.id, "surat_sehat")}
-                          data-testid={`admin-file-suratsehat-${r.reg_number}`} aria-label="Surat keterangan sehat" title="Surat Sehat"
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-300 hover:bg-[#1C1C24]">
-                          <HeartPulse className="h-4 w-4" />
-                        </button>
-                      )}
-                      {photoKindsFor(r.category).map((kind, i, all) => r.files?.[kind] && (
-                        <button key={kind} type="button" onClick={() => openFile(r.id, kind)}
-                          data-testid={`admin-file-${kind.replace("_", "")}-${r.reg_number}`}
-                          aria-label={photoLabel(i, all.length)} title={photoLabel(i, all.length)}
-                          className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-300 hover:bg-[#1C1C24]">
-                          <ImageIcon className="h-4 w-4" />
-                          {all.length > 1 && (
-                            <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold text-stone-900">
-                              {i + 1}
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                      {(() => {
+                        const kinds = fileKindsFor(r.category);
+                        const ada = kinds.filter((k) => r.files?.[k.key]).length;
+                        return (
+                          <button type="button" onClick={() => setFilesOf(r)} disabled={ada === 0}
+                            data-testid={`admin-files-btn-${r.reg_number}`} title={`Berkas ${ada}/${kinds.length}`}
+                            aria-label={`Berkas pendaftar, ${ada} dari ${kinds.length} terunggah`}
+                            className={`flex h-8 items-center gap-1.5 rounded-lg border border-[#2E2E3A] px-2 text-xs font-semibold ${
+                              ada === 0 ? "cursor-not-allowed text-slate-600"
+                                : ada === kinds.length ? "text-amber-400 hover:bg-[#1C1C24]" : "text-slate-300 hover:bg-[#1C1C24]"}`}>
+                            <FolderOpen className="h-4 w-4" />{ada}/{kinds.length}
+                          </button>
+                        );
+                      })()}
                       {r.phone_whatsapp && (
                         <a href={waAthleteLink(r.phone_whatsapp, r.full_name, r.reg_number)} target="_blank" rel="noopener noreferrer"
                           data-testid={`admin-wa-btn-${r.reg_number}`} aria-label="WhatsApp atlet"
@@ -362,6 +355,49 @@ export default function AdminDashboard() {
           <TabsContent value="bagan"><BracketManager /></TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={!!filesOf} onOpenChange={() => setFilesOf(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto border-[#2E2E3A] bg-[#13131A] text-slate-50" data-testid="admin-files-modal">
+          <DialogHeader>
+            <DialogTitle className="font-display">Berkas {filesOf?.reg_number}</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {filesOf?.category} &bull; {filesOf?.contingent_school}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {filesOf && Array.from({ length: fileSetCount(filesOf.category) }, (_, i) => {
+              const nama = filesOf.member_names?.[i] || (i === 0 ? filesOf.full_name : "");
+              return (
+                <div key={i} className="rounded-xl border border-[#2E2E3A] bg-[#0B0B0E] p-3">
+                  <div className="mb-2 flex items-baseline gap-2">
+                    <span className="text-xs font-bold text-slate-200">{memberLabel(i, fileSetCount(filesOf.category))}</span>
+                    <span className="truncate text-xs text-slate-500">{nama}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {FILE_BASES.map((b) => {
+                      const kind = kindFor(b.base, i);
+                      const ada = !!filesOf.files?.[kind];
+                      const Icon = KIND_ICON[b.base];
+                      return (
+                        <button key={kind} type="button" disabled={!ada}
+                          onClick={() => openFile(filesOf.id, kind)}
+                          data-testid={`admin-file-${kind.replace(/_/g, "")}-${filesOf.reg_number}`}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                            ada ? "border-[#2E2E3A] text-slate-200 hover:bg-[#1C1C24]"
+                                : "border-dashed border-[#2E2E3A] text-slate-600"}`}>
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{b.label}</span>
+                          {!ada && <span className="ml-auto shrink-0 text-[10px] font-normal">kosong</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

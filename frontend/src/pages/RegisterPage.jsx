@@ -2,16 +2,17 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { CheckCircle2, MessageCircle, Loader2, FileUp } from "lucide-react";
+import { CheckCircle2, MessageCircle, Loader2, FileUp, Check } from "lucide-react";
 import Seo from "@/components/Seo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage } from "@/lib/compressImage";
-import { memberCount, photoKindsFor, photoLabel } from "@/lib/registration";
+import { fileKindsFor, fileSetCount, memberCount, memberLabel } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
@@ -22,13 +23,26 @@ const INITIAL = {
   full_name: "", contingent_school: "", category: "", age_class: "", weight_class: "", height_cm: "", official_coach: "",
 };
 const INITIAL_MEMBERS = ["", "", "", ""];
-const DOC_FIELDS = [
-  { key: "data_diri", label: "Data Diri (KK/Ijazah/Rapor)", accept: ".pdf,.jpg,.jpeg,.png" },
-  { key: "surat_sehat", label: "Surat Keterangan Sehat", accept: ".pdf,.jpg,.jpeg,.png" },
-];
-const PHOTO_ACCEPT = ".jpg,.jpeg,.png";
-
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 placeholder:text-slate-500 focus-visible:ring-amber-500";
+
+// Satu baris pendek, bukan kotak tinggi: kategori beregu memerlukan 15 slot
+// dan versi lama membuat formulir memanjang jauh di layar ponsel.
+function FileSlot({ field, file, onPick }) {
+  return (
+    <label data-testid={`reg-file-${field.key}-picker`}
+      className={`flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2.5 transition-colors ${
+        file ? "border-amber-500/50 bg-amber-500/5" : "border-[#2E2E3A] bg-[#0B0B0E] hover:border-amber-500/40"}`}>
+      {file ? <Check className="h-4 w-4 shrink-0 text-amber-400" /> : <FileUp className="h-4 w-4 shrink-0 text-amber-400" />}
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold text-slate-300">{field.label}</span>
+        <span className="block truncate text-[10px] text-slate-500" data-testid={`reg-file-${field.key}-name`}>
+          {file ? file.name : field.hint}
+        </span>
+      </span>
+      <input type="file" accept={field.accept} className="hidden" data-testid={`reg-file-${field.key}-input`} onChange={onPick} />
+    </label>
+  );
+}
 
 export default function RegisterPage() {
   const [form, setForm] = useState(INITIAL);
@@ -39,11 +53,10 @@ export default function RegisterPage() {
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
   const isGroup = groupSize > 0;
-  // Satu pas foto per anggota: kategori beregu minta 5 (Ganda 2), tunggal 1.
-  const photoFields = photoKindsFor(form.category).map((key, i, all) => ({
-    key, accept: PHOTO_ACCEPT, label: photoLabel(i, all.length),
-  }));
-  const fileFields = [...DOC_FIELDS, ...photoFields];
+  // Satu set berkas (data diri, surat sehat, pas foto) per anggota.
+  const setCount = fileSetCount(form.category);
+  const fileFields = fileKindsFor(form.category);
+  const memberNames = [form.full_name, ...members.slice(0, Math.max(groupSize - 1, 0))];
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
@@ -59,7 +72,9 @@ export default function RegisterPage() {
     e.preventDefault();
     const missing = fileFields.filter((f) => !files[f.key]);
     if (missing.length > 0) {
-      toast.error(`Berkas wajib belum lengkap: ${missing.map((f) => f.label).join(", ")}`);
+      const name = (f) => (setCount > 1 ? `${memberLabel(f.member, setCount)}: ${f.label}` : f.label);
+      const head = missing.slice(0, 3).map(name).join(", ");
+      toast.error(`Berkas wajib belum lengkap (${missing.length}) — ${head}${missing.length > 3 ? ", dst." : ""}`);
       return;
     }
     setLoading(true);
@@ -177,25 +192,50 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-3 sm:col-span-2">
                 <Label>Berkas Pendukung <span className="text-amber-400">(wajib)</span> — PDF/JPG/PNG, maks 5 MB per berkas</Label>
-                {isGroup && (
-                  <p className="text-xs text-slate-400" data-testid="reg-photo-hint">
-                    Kategori {form.category} wajib melampirkan pas foto tiap anggota ({groupSize} foto).
-                  </p>
+                {!isGroup ? (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {fileFields.map((f) => (
+                      <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f.key)} />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-400" data-testid="reg-files-hint">
+                      Tiap anggota melampirkan 3 berkas sendiri ({groupSize * 3} berkas). Ketuk nama anggota untuk membukanya.
+                    </p>
+                    <Accordion type="multiple" defaultValue={["m0"]}
+                      className="overflow-hidden rounded-xl border border-[#2E2E3A] bg-[#0B0B0E]">
+                      {Array.from({ length: groupSize }, (_, i) => {
+                        const fields = fileFields.filter((f) => f.member === i);
+                        const done = fields.filter((f) => files[f.key]).length;
+                        return (
+                          <AccordionItem key={i} value={`m${i}`} className="border-[#2E2E3A] px-3 last:border-b-0">
+                            <AccordionTrigger className="py-3 hover:no-underline" data-testid={`reg-member-files-${i + 1}`}>
+                              <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                                <span className="shrink-0 text-xs font-bold text-slate-200">{memberLabel(i, groupSize)}</span>
+                                <span className="min-w-0 truncate text-xs text-slate-500">
+                                  {memberNames[i]?.trim() || "nama belum diisi"}
+                                </span>
+                              </span>
+                              <span data-testid={`reg-member-files-${i + 1}-count`}
+                                className={`mr-2 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                                  done === fields.length ? "bg-amber-500 text-stone-900" : "bg-[#1C1C24] text-slate-400"}`}>
+                                {done}/{fields.length}
+                              </span>
+                            </AccordionTrigger>
+                            <AccordionContent className="pb-3">
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                {fields.map((f) => (
+                                  <FileSlot key={f.key} field={f} file={files[f.key]} onPick={pickFile(f.key)} />
+                                ))}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  </>
                 )}
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {fileFields.map((f) => (
-                    <label key={f.key} data-testid={`reg-file-${f.key}-picker`}
-                      className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-[#2E2E3A] bg-[#0B0B0E] px-3 py-4 text-center transition-colors hover:border-amber-500/40">
-                      <FileUp className="h-5 w-5 text-amber-400" />
-                      <span className="text-xs font-semibold text-slate-300">{f.label}</span>
-                      <span className="max-w-full truncate text-[10px] text-slate-500" data-testid={`reg-file-${f.key}-name`}>
-                        {files[f.key] ? files[f.key].name : "Klik untuk pilih file"}
-                      </span>
-                      <input type="file" accept={f.accept} className="hidden" data-testid={`reg-file-${f.key}-input`}
-                        onChange={pickFile(f.key)} />
-                    </label>
-                  ))}
-                </div>
               </div>
               <div className="sm:col-span-2">
                 <Button type="submit" disabled={loading} data-testid="reg-submit-btn"

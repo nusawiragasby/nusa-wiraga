@@ -48,11 +48,21 @@ if RESEND_API_KEY:
 STATUS_VALUES = {"menunggu", "terverifikasi", "ditolak"}
 PAYMENT_VALUES = {"belum_bayar", "lunas"}
 
-# Kategori beregu wajib mengunggah satu pas foto per anggota, jadi kind berkas
-# foto bernomor. Kind pertama tetap bernama "foto" (bukan "foto_1") supaya
-# berkas pendaftar lama, link di Google Sheets, dan tombol admin tetap jalan.
+# Kategori beregu wajib melampirkan tiga berkas untuk SETIAP anggota, jadi
+# kind berkas bernomor. Kind anggota pertama tetap tanpa akhiran ("foto",
+# bukan "foto_1") supaya berkas pendaftar lama, link di Google Sheets, dan
+# tombol admin tetap jalan.
 MAX_MEMBERS = 5
-PHOTO_KINDS = ["foto"] + [f"foto_{i}" for i in range(2, MAX_MEMBERS + 1)]
+FILE_BASE_KINDS = ("data_diri", "surat_sehat", "foto")
+
+
+def member_kinds(base: str) -> List[str]:
+    """Kind berkas `base` untuk anggota 1..MAX_MEMBERS."""
+    return [base] + [f"{base}_{i}" for i in range(2, MAX_MEMBERS + 1)]
+
+
+ALL_FILE_KINDS = [kind for base in FILE_BASE_KINDS for kind in member_kinds(base)]
+PHOTO_KINDS = member_kinds("foto")
 
 
 def member_count(category: str) -> int:
@@ -64,9 +74,15 @@ def member_count(category: str) -> int:
     return 0
 
 
-def photo_kinds_for(category: str) -> List[str]:
-    """Kind pas foto yang berlaku: satu per anggota, minimal satu."""
-    return PHOTO_KINDS[:max(member_count(category), 1)]
+def file_sets(category: str) -> int:
+    """Jumlah set berkas: satu per anggota, minimal satu."""
+    return max(member_count(category), 1)
+
+
+def file_kinds_for(category: str) -> List[str]:
+    """Kind berkas yang berlaku untuk kategori ini."""
+    sets = file_sets(category)
+    return [kind for base in FILE_BASE_KINDS for kind in member_kinds(base)[:sets]]
 
 
 def hash_password(password: str) -> str:
@@ -594,7 +610,15 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
 async def upload_registration_files(
     reg_id: str,
     data_diri: Optional[UploadFile] = File(None),
+    data_diri_2: Optional[UploadFile] = File(None),
+    data_diri_3: Optional[UploadFile] = File(None),
+    data_diri_4: Optional[UploadFile] = File(None),
+    data_diri_5: Optional[UploadFile] = File(None),
     surat_sehat: Optional[UploadFile] = File(None),
+    surat_sehat_2: Optional[UploadFile] = File(None),
+    surat_sehat_3: Optional[UploadFile] = File(None),
+    surat_sehat_4: Optional[UploadFile] = File(None),
+    surat_sehat_5: Optional[UploadFile] = File(None),
     foto: Optional[UploadFile] = File(None),
     foto_2: Optional[UploadFile] = File(None),
     foto_3: Optional[UploadFile] = File(None),
@@ -605,17 +629,20 @@ async def upload_registration_files(
     if not reg:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
     existing = reg.get("files", {})
-    allowed_photos = photo_kinds_for(reg.get("category", ""))
-    incoming = [("data_diri", data_diri), ("surat_sehat", surat_sehat)]
-    incoming += list(zip(PHOTO_KINDS, (foto, foto_2, foto_3, foto_4, foto_5)))
+    allowed = file_kinds_for(reg.get("category", ""))
+    incoming = list(zip(ALL_FILE_KINDS, (
+        data_diri, data_diri_2, data_diri_3, data_diri_4, data_diri_5,
+        surat_sehat, surat_sehat_2, surat_sehat_3, surat_sehat_4, surat_sehat_5,
+        foto, foto_2, foto_3, foto_4, foto_5,
+    )))
     uploads = {}
     for kind, file in incoming:
         if not file or not file.filename:
             continue
-        if kind in PHOTO_KINDS and kind not in allowed_photos:
+        if kind not in allowed:
             raise HTTPException(
                 status_code=422,
-                detail=f"Kategori {reg.get('category')} hanya memerlukan {len(allowed_photos)} pas foto",
+                detail=f"Kategori {reg.get('category')} hanya memerlukan berkas untuk {file_sets(reg.get('category', ''))} anggota",
             )
         ext = file.filename.rsplit(".", 1)[-1].lower()
         if ext not in FILE_KINDS[kind]:
@@ -960,9 +987,24 @@ SHEET_HEADER = [
     "No Registrasi", "Nama", "NIK/NISN", "Email", "WhatsApp", "Perguruan", "Kategori", "Kelompok Usia",
     "Kelas", "Pelatih", "Status", "Pembayaran", "Tanggal Daftar", "Tinggi Badan (cm)",
     "Foto", "KTP/NISN", "Surat Sehat",
+    # Berkas anggota 2-5 ditaruh di ujung, bukan di sebelah kolom sejenisnya,
+    # supaya kolom yang sudah tertulis di sheet tidak bergeser.
     *[f"Foto {i}" for i in range(2, MAX_MEMBERS + 1)],
+    *[f"KTP/NISN {i}" for i in range(2, MAX_MEMBERS + 1)],
+    *[f"Surat Sehat {i}" for i in range(2, MAX_MEMBERS + 1)],
 ]
-SHEET_COL_LETTERS = "ABCDEFGHIJKLMNOPQRSTU"  # 21 kolom, selaras dengan SHEET_HEADER
+
+
+def col_letter(index: int) -> str:
+    """Huruf kolom spreadsheet untuk indeks 1-based (1->A, 26->Z, 27->AA)."""
+    letters = ""
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        letters = chr(ord("A") + rem) + letters
+    return letters
+
+
+SHEET_LAST_COL = col_letter(len(SHEET_HEADER))
 
 # Berkas pendaftar disimpan di disk lokal server (di luar MongoDB) supaya
 # tidak membebani kuota 512 MB tier gratis MongoDB Atlas — hosting ini sudah
@@ -1001,8 +1043,8 @@ async def delete_object(file_id: str):
 
 
 FILE_KINDS = {
-    "data_diri": {"pdf", "jpg", "jpeg", "png"},
-    "surat_sehat": {"pdf", "jpg", "jpeg", "png"},
+    **{kind: {"pdf", "jpg", "jpeg", "png"} for kind in member_kinds("data_diri")},
+    **{kind: {"pdf", "jpg", "jpeg", "png"} for kind in member_kinds("surat_sehat")},
     **{kind: {"jpg", "jpeg", "png"} for kind in PHOTO_KINDS},
 }
 
@@ -1035,6 +1077,10 @@ def build_sheet_row(doc: dict) -> list:
         file_link_formula(reg_id, doc, "surat_sehat", "Lihat Surat Sehat"),
         *[file_link_formula(reg_id, doc, kind, f"Lihat Foto {i}")
           for i, kind in enumerate(PHOTO_KINDS[1:], start=2)],
+        *[file_link_formula(reg_id, doc, kind, f"Lihat KTP/NISN {i}")
+          for i, kind in enumerate(member_kinds("data_diri")[1:], start=2)],
+        *[file_link_formula(reg_id, doc, kind, f"Lihat Surat Sehat {i}")
+          for i, kind in enumerate(member_kinds("surat_sehat")[1:], start=2)],
     ]
 
 
@@ -1111,7 +1157,7 @@ def _first_empty_row(service, sheet_id: str, title: str) -> int:
 
 
 def _write_sheet_row(service, sheet_id: str, title: str, values: list, row_idx: int):
-    last_col = SHEET_COL_LETTERS[len(SHEET_HEADER) - 1]
+    last_col = SHEET_LAST_COL
     service.spreadsheets().values().update(
         spreadsheetId=sheet_id, range=f"'{title}'!A{row_idx}:{last_col}{row_idx}",
         valueInputOption="USER_ENTERED", body={"values": [values]},
@@ -1124,7 +1170,7 @@ async def append_registration_to_sheet(doc: dict):
         logger.info(f"[SHEETS NONAKTIF] {doc['reg_number']} tidak disinkron (kredensial belum diisi)")
         return
     row = build_sheet_row(doc)
-    last_col = SHEET_COL_LETTERS[len(SHEET_HEADER) - 1]
+    last_col = SHEET_LAST_COL
 
     def _append():
         title = _sheet_props(service, sheet_id)["title"]
@@ -1135,7 +1181,7 @@ async def append_registration_to_sheet(doc: dict):
             _write_sheet_row(service, sheet_id, title, SHEET_HEADER, 1)
         elif len(existing[0]) < len(SHEET_HEADER):
             missing = SHEET_HEADER[len(existing[0]):]
-            start_col = SHEET_COL_LETTERS[len(existing[0])]
+            start_col = col_letter(len(existing[0]) + 1)
             service.spreadsheets().values().update(
                 spreadsheetId=sheet_id, range=f"'{title}'!{start_col}1",
                 valueInputOption="RAW", body={"values": [missing]},
@@ -1164,7 +1210,7 @@ async def update_sheet_row(doc: dict):
             return
         # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
         # (dipanggil baik saat admin ubah status maupun saat berkas baru diunggah).
-        last_col = SHEET_COL_LETTERS[len(SHEET_HEADER) - 1]
+        last_col = SHEET_LAST_COL
         row = build_sheet_row(doc)
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id, range=f"'{title}'!K{row_idx}:{last_col}{row_idx}",
