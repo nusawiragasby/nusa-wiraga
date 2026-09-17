@@ -80,6 +80,12 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const payload = { ...form };
+      // Field kosong dibuang, bukan dikirim sebagai "": tinggi badan bertipe
+      // angka di backend, dan string kosong ditolak Pydantic ("Input should be
+      // a valid number") sehingga seluruh kategori non-Tanding gagal mendaftar.
+      Object.keys(payload).forEach((k) => {
+        if (typeof payload[k] === "string" && !payload[k].trim()) delete payload[k];
+      });
       if (isGroup) payload.member_names = [form.full_name, ...members.slice(0, groupSize - 1)];
       const { data } = await api.post("/register", payload);
       try {

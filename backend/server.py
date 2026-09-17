@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("nusawiraga")
@@ -142,6 +142,16 @@ class RegisterInput(BaseModel):
     weight_class: Optional[str] = None
     height_cm: Optional[float] = None
     official_coach: Optional[str] = None
+
+    @field_validator("height_cm", "email", mode="before")
+    @classmethod
+    def _kosong_berarti_tidak_diisi(cls, v):
+        """Formulir mengirim "" untuk field yang tidak ditampilkan.
+
+        Tanpa ini Pydantic menolaknya ("Input should be a valid number") dan
+        pendaftaran kategori non-Tanding gagal seluruhnya.
+        """
+        return None if isinstance(v, str) and not v.strip() else v
 
 
 class RegistrantUpdate(BaseModel):
