@@ -17,7 +17,7 @@ export const Navbar = () => {
     <header className="sticky top-0 z-50 border-b border-amber-500/20 bg-[#0B0B0E]/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <a href="/#beranda" className="flex items-center gap-2" data-testid="nav-logo">
-          <img src="/logo-nusawiraga.png" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover glow-gold" />
+          <img src="/logo-nusawiraga-144.webp" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover glow-gold" />
           <span className="font-display text-lg font-extrabold tracking-tight">
             NUSA <span className="text-gold-gradient">WIRAGA</span>
           </span>

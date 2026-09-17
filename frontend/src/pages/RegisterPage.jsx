@@ -168,7 +168,7 @@ export default function RegisterPage() {
       <div className="grid min-h-screen lg:grid-cols-5">
         <aside className="relative hidden flex-col justify-between overflow-hidden bg-[#800E19] p-10 lg:col-span-2 lg:flex grain">
           <Link to="/" className="relative flex items-center gap-2" data-testid="register-logo">
-            <img src="/logo-nusawiraga.png" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
+            <img src="/logo-nusawiraga-144.webp" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
             <span className="font-display text-lg font-extrabold">NUSA <span className="text-gold-gradient">WIRAGA</span></span>
           </Link>
           <div className="relative">

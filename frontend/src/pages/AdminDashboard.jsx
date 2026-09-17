@@ -173,7 +173,7 @@ export default function AdminDashboard() {
       <header className="sticky top-0 z-40 border-b border-amber-500/20 bg-[#0B0B0E]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2" data-testid="admin-logo">
-            <img src="/logo-nusawiraga.png" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
+            <img src="/logo-nusawiraga-144.webp" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
             <span className="font-display text-lg font-extrabold">NUSA <span className="text-gold-gradient">WIRAGA</span></span>
           </Link>
           <div className="flex items-center gap-3">

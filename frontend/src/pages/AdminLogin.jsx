@@ -36,7 +36,7 @@ export default function AdminLogin() {
       <Seo title="Admin Portal — Nusa Wiraga 2026" siteName="Nusa Wiraga" description="Portal manajemen panitia Kejuaraan Pencak Silat Nusa Wiraga." />
       <div className="w-full max-w-md rounded-3xl border border-[#2E2E3A] bg-[#13131A] p-8">
         <div className="flex flex-col items-center">
-          <img src="/logo-nusawiraga.png" alt="Logo Nusa Wiraga" className="h-12 w-12 rounded-2xl object-cover glow-gold" />
+          <img src="/logo-nusawiraga-144.webp" alt="Logo Nusa Wiraga" className="h-12 w-12 rounded-2xl object-cover glow-gold" />
           <h1 className="mt-4 text-xl font-extrabold sm:text-2xl">Admin Portal <span className="text-gold-gradient">Nusa Wiraga</span></h1>
           <p className="mt-1 text-sm text-slate-400">Khusus panitia kejuaraan</p>
         </div>

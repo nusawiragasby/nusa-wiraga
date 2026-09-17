@@ -6,7 +6,7 @@ export const Footer = () => (
     <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 md:grid-cols-3">
       <div>
         <div className="flex items-center gap-2">
-          <img src="/logo-nusawiraga.png" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
+          <img src="/logo-nusawiraga-144.webp" alt="Logo Nusa Wiraga" className="h-9 w-9 rounded-xl object-cover" />
           <span className="font-display text-lg font-extrabold">NUSA <span className="text-gold-gradient">WIRAGA</span></span>
         </div>
         <p className="mt-4 max-w-xs text-sm text-slate-400">

@@ -5,7 +5,11 @@ import { MessageCircle, CalendarDays, MapPin } from "lucide-react";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const TARGET = new Date("2026-10-10T08:00:00+07:00").getTime();
-const HERO_IMG = "/hero-pagarnusa.jpg";
+// Dua ukuran: ponsel tidak perlu mengunduh versi layar lebar. Gambar ini
+// adalah elemen LCP halaman, jadi prioritasnya dinaikkan dan sudah di-preload
+// dari index.html — tanpa itu browser baru menemukannya setelah JS render.
+const HERO_SRCSET = "/hero-pagarnusa-900.webp 900w, /hero-pagarnusa-1600.webp 1600w";
+const HERO_IMG = "/hero-pagarnusa-900.webp";
 
 const useCountdown = () => {
   const [now, setNow] = useState(Date.now());
@@ -26,7 +30,9 @@ export const Hero = () => {
   const cd = useCountdown();
   return (
     <section id="beranda" className="relative overflow-hidden grain" data-testid="hero-section">
-      <img src={HERO_IMG} alt="Barisan Pagar Nusa dalam upacara pembukaan kejuaraan pencak silat" className="absolute inset-0 h-full w-full object-cover" />
+      <img src={HERO_IMG} srcSet={HERO_SRCSET} sizes="100vw" fetchPriority="high" decoding="async"
+        alt="Barisan Pagar Nusa dalam upacara pembukaan kejuaraan pencak silat"
+        className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 hero-overlay" />
       <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32">
         <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
