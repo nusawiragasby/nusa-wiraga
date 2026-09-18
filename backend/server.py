@@ -906,6 +906,24 @@ async def public_sponsors():
     return await db.sponsors.find({}, {"_id": 0}).sort("created_at", 1).to_list(200)
 
 
+@api_router.get("/home")
+async def public_home():
+    """Seluruh data beranda dalam satu permintaan.
+
+    Dulu beranda memanggil /brackets, /results, dan /sponsors berbarengan.
+    Hosting ini hanya menjaga sedikit proses Python hidup, jadi permintaan
+    yang datang bersamaan justru saling menunggu cold start — satu permintaan
+    berurutan jauh lebih murah daripada tiga yang berebut proses.
+
+    Ketiganya sudah memakai cache in-memory yang sama, jadi ini tidak
+    menambah kerja ke MongoDB.
+    """
+    brackets, results, sponsors = await asyncio.gather(
+        public_brackets(), public_results(), public_sponsors(),
+    )
+    return {"brackets": brackets, "results": results, "sponsors": sponsors}
+
+
 # ---------- Admin CMS: Berita ----------
 @api_router.post("/admin/news")
 async def create_news(body: NewsInput, user: dict = Depends(get_current_user)):

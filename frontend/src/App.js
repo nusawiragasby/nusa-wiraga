@@ -3,7 +3,11 @@ import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import LandingPage from "@/pages/LandingPage";
-import RegisterPage from "@/pages/RegisterPage";
+
+// Formulir pendaftaran hanya dibuka sebagian pengunjung, dan ia membawa
+// serta kompresi gambar, dialog, serta akordeon berkas — pengunjung yang
+// cuma membaca beranda tidak perlu mengunduhnya.
+const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 
 // Halaman admin hanya dipakai panitia, bukan pengunjung publik — dipisah
 // jadi chunk sendiri agar pengunjung tidak perlu mengunduh kodenya.

@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Radio, Trophy, Medal } from "lucide-react";
-import { api } from "@/lib/api";
 
 const ARENAS = [
   { name: "Gelanggang A", type: "Tanding", status: "Dibuka 10 Oktober 2026" },
@@ -15,12 +13,7 @@ const MEDAL_ORDER = [
   { value: "perunggu", label: "Perunggu", cls: "border-orange-700/40 bg-orange-700/10", icon: "text-orange-400" },
 ];
 
-export const ResultsSection = () => {
-  const [results, setResults] = useState([]);
-  useEffect(() => {
-    api.get("/results").then((r) => setResults(r.data)).catch(() => {});
-  }, []);
-
+export const ResultsSection = ({ results = [] }) => {
   return (
     <section id="hasil" className="mx-auto max-w-7xl px-4 py-24 sm:px-6" data-testid="results-section">
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">Hasil Pertandingan</p>

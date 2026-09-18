@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { GitFork, Swords, Clock, Trophy } from "lucide-react";
-import { api } from "@/lib/api";
 import { roundsOf, roundLabel } from "@/lib/bracket";
 
 const Slot = ({ name, won }) => (
@@ -66,12 +64,7 @@ const ListView = ({ matches }) => (
   </div>
 );
 
-export const BracketSection = () => {
-  const [brackets, setBrackets] = useState([]);
-  useEffect(() => {
-    api.get("/brackets").then((r) => setBrackets(r.data)).catch(() => {});
-  }, []);
-
+export const BracketSection = ({ brackets = [] }) => {
   if (brackets.length === 0) return null; // Sembunyikan section kalau panitia belum membuat bagan.
 
   return (

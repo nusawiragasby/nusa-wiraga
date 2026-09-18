@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Crown, Medal, Newspaper, MessageCircle } from "lucide-react";
-import { api, waLink } from "@/lib/api";
+import { waLink } from "@/lib/api";
 
 const TIERS = [
   { key: "platinum", icon: Crown, tier: "Sponsor Utama (Platinum)", slots: 1 },
@@ -9,11 +8,7 @@ const TIERS = [
   { key: "media", icon: Newspaper, tier: "Official Media Partner", slots: 4 },
 ];
 
-export const SponsorsSection = () => {
-  const [sponsors, setSponsors] = useState([]);
-  useEffect(() => {
-    api.get("/sponsors").then((r) => setSponsors(r.data)).catch(() => {});
-  }, []);
+export const SponsorsSection = ({ sponsors = [] }) => {
 
   return (
     <section id="sponsor" className="border-t border-[#2E2E3A] bg-[#13131A]/50 py-24" data-testid="sponsors-section">
