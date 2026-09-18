@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { Reveal } from "@/components/Reveal";
 import { Crown, Medal, Newspaper, MessageCircle } from "lucide-react";
 import { waLink } from "@/lib/api";
 
@@ -25,8 +25,7 @@ export const SponsorsSection = ({ sponsors = [] }) => {
             const inTier = sponsors.filter((s) => s.tier === t.key);
             const emptySlots = Math.max(0, t.slots - inTier.length);
             return (
-              <motion.div key={t.tier} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
+              <Reveal key={t.tier} delay={i * 0.1}>
                 <h3 className="flex items-center gap-2 text-base font-bold text-amber-300 sm:text-lg">
                   <t.icon className="h-5 w-5" /> {t.tier}
                 </h3>
@@ -45,7 +44,7 @@ export const SponsorsSection = ({ sponsors = [] }) => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </Reveal>
             );
           })}
         </div>

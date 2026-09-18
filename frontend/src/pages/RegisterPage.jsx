@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { CheckCircle2, MessageCircle, Loader2, FileUp, Check, AlertTriangle } from "lucide-react";
 import Seo from "@/components/Seo";
@@ -194,7 +193,7 @@ export default function RegisterPage() {
         </aside>
 
         <main className="flex items-center justify-center px-4 py-12 lg:col-span-3 sm:px-8">
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl">
+          <div className="muncul w-full max-w-2xl">
             <Link to="/" className="text-sm text-slate-400 hover:text-amber-400" data-testid="register-back-link">&larr; Kembali ke Beranda</Link>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight sm:text-3xl">Formulir Pendaftaran Atlet</h2>
             <p className="mt-2 text-sm text-slate-400">Lengkapi data berikut, lalu hubungi panitia via WhatsApp untuk verifikasi pembayaran & berkas.</p>
@@ -314,7 +313,7 @@ export default function RegisterPage() {
                 </Button>
               </div>
             </form>
-          </motion.div>
+          </div>
         </main>
       </div>
 

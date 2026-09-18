@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { Reveal } from "@/components/Reveal";
 import { GitFork, Swords, Clock, Trophy } from "lucide-react";
 import { roundsOf, roundLabel } from "@/lib/bracket";
 
@@ -78,12 +78,11 @@ export const BracketSection = ({ brackets = [] }) => {
       </p>
       <div className="mt-10 space-y-8">
         {brackets.map((b, i) => (
-          <motion.div key={b.id} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ delay: (i % 4) * 0.08 }}
+          <Reveal key={b.id} delay={(i % 4) * 0.08}
             className="rounded-2xl border border-[#2E2E3A] bg-[#0B0B0E]/40 p-4 sm:p-6" data-testid={`bracket-card-${b.id}`}>
             <h3 className="mb-4 text-lg font-bold sm:text-xl">{b.title}</h3>
             {b.kind === "bracket" ? <BracketView matches={b.matches} /> : <ListView matches={b.matches} />}
-          </motion.div>
+          </Reveal>
         ))}
       </div>
     </section>

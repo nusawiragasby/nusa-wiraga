@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { Reveal } from "@/components/Reveal";
 import { Radio, Trophy, Medal } from "lucide-react";
 
 const ARENAS = [
@@ -28,8 +28,7 @@ export const ResultsSection = ({ results = [] }) => {
           </p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {ARENAS.map((a, i) => (
-              <motion.div key={a.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+              <Reveal key={a.name} delay={i * 0.1}
                 className="rounded-2xl border border-[#2E2E3A] bg-[#13131A] p-6" data-testid={`arena-card-${i}`}>
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold sm:text-xl">{a.name}</h3>
@@ -42,7 +41,7 @@ export const ResultsSection = ({ results = [] }) => {
                   <p className="mt-3 text-sm font-semibold text-slate-300">Segera Hadir</p>
                   <p className="mt-1 text-xs text-slate-500">{a.status}</p>
                 </div>
-              </motion.div>
+              </Reveal>
             ))}
           </div>
         </>
@@ -51,8 +50,7 @@ export const ResultsSection = ({ results = [] }) => {
           {MEDAL_ORDER.map((m, mi) => {
             const list = results.filter((r) => r.medal === m.value);
             return (
-              <motion.div key={m.value} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }} transition={{ delay: mi * 0.1 }}
+              <Reveal key={m.value} delay={mi * 0.1}
                 className={`rounded-2xl border p-6 ${m.cls}`} data-testid={`medal-column-${m.value}`}>
                 <h3 className="flex items-center gap-2 font-display text-lg font-extrabold">
                   <Medal className={`h-5 w-5 ${m.icon}`} /> Medali {m.label}
@@ -68,7 +66,7 @@ export const ResultsSection = ({ results = [] }) => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </Reveal>
             );
           })}
         </div>

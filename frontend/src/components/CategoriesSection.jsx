@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Reveal } from "@/components/Reveal";
 import { Swords, User, Users, Banknote } from "lucide-react";
 
 const CATEGORIES = [
@@ -18,8 +18,7 @@ export const CategoriesSection = () => (
       </h2>
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {CATEGORIES.map((c, i) => (
-          <motion.div key={c.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+          <Reveal key={c.name} delay={i * 0.08}
             className="group rounded-2xl border border-[#2E2E3A] bg-[#1C1C24] p-6 transition-all hover:-translate-y-2 hover:border-amber-500/40"
             data-testid={`category-card-${i}`}>
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#800E19]/40 transition-colors group-hover:bg-[#800E19]">
@@ -30,7 +29,7 @@ export const CategoriesSection = () => (
             <p className="mt-4 flex items-center gap-2 text-sm font-bold text-amber-400">
               <Banknote className="h-4 w-4" /> {c.fee}
             </p>
-          </motion.div>
+          </Reveal>
         ))}
       </div>
       <div className="mt-10 flex flex-col items-start justify-between gap-6 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-[#800E19]/40 to-transparent p-6 sm:flex-row sm:items-center">
