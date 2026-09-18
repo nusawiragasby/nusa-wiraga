@@ -68,6 +68,23 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
+  const [sesi, setSesi] = useState(0);
+
+  // Menutup dialog sukses berarti "daftarkan orang berikutnya". Tanpa ini data
+  // dan BERKAS pendaftar sebelumnya masih menempel dan bisa ikut terkirim atas
+  // nama atlet yang salah.
+  const mulaiPendaftaranBaru = () => {
+    setResult(null);
+    setForm(INITIAL);
+    setMembers(INITIAL_MEMBERS);
+    setFiles({});
+    setUploadState({});
+    setProgress(0);
+    draftToken.current = null;
+    uploads.current = {};
+    antrian.current = Promise.resolve();
+    setSesi((n) => n + 1);
+  };
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
   const isGroup = groupSize > 0;
@@ -256,7 +273,7 @@ export default function RegisterPage() {
                 {!isGroup ? (
                   <div className="grid gap-2 sm:grid-cols-3">
                     {fileFields.map((f) => (
-                      <FileSlot key={f.key} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
+                      <FileSlot key={`${sesi}-${f.key}`} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
                     ))}
                   </div>
                 ) : (
@@ -287,7 +304,7 @@ export default function RegisterPage() {
                             <AccordionContent className="pb-3">
                               <div className="grid gap-2 sm:grid-cols-3">
                                 {fields.map((f) => (
-                                  <FileSlot key={f.key} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
+                                  <FileSlot key={`${sesi}-${f.key}`} field={f} file={files[f.key]} status={uploadState[f.key]} onPick={pickFile(f)} />
                                 ))}
                               </div>
                             </AccordionContent>
@@ -312,7 +329,7 @@ export default function RegisterPage() {
         </main>
       </div>
 
-      <Dialog open={!!result} onOpenChange={() => setResult(null)}>
+      <Dialog open={!!result} onOpenChange={(terbuka) => !terbuka && mulaiPendaftaranBaru()}>
         <DialogContent className="border-amber-500/30 bg-[#13131A] text-slate-50" data-testid="reg-success-modal">
           <DialogHeader>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
