@@ -684,6 +684,23 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
 DRAFT_DIR = "drafts"
 DRAFT_TTL_HOURS = 6
 
+# Endpoint unggah berkas pendaftar terbuka tanpa login karena dipakai sebagai
+# cadangan tepat setelah formulir terkirim. Tapi reg_id-nya juga tercantum di
+# tautan berkas pada Google Sheet, jadi tanpa batas waktu, tautan yang bocor
+# bisa dipakai siapa saja untuk MENIMPA berkas pendaftar. Lewat jendela ini,
+# hanya admin yang boleh.
+UPLOAD_WINDOW_HOURS = 2
+
+
+def within_upload_window(reg: dict) -> bool:
+    try:
+        dibuat = datetime.fromisoformat(reg.get("created_at") or "")
+    except ValueError:
+        return False
+    if dibuat.tzinfo is None:
+        dibuat = dibuat.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - dibuat < timedelta(hours=UPLOAD_WINDOW_HOURS)
+
 
 async def read_valid_upload(file: UploadFile, kind: str) -> tuple:
     """Baca berkas unggahan setelah format & ukurannya lolos."""
@@ -803,6 +820,7 @@ async def purge_stale_drafts() -> int:
 @api_router.post("/register/{reg_id}/files")
 async def upload_registration_files(
     reg_id: str,
+    request: Request,
     data_diri: Optional[UploadFile] = File(None),
     data_diri_2: Optional[UploadFile] = File(None),
     data_diri_3: Optional[UploadFile] = File(None),
@@ -822,6 +840,9 @@ async def upload_registration_files(
     reg = await db.registrants.find_one({"id": reg_id})
     if not reg:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
+    if not within_upload_window(reg):
+        # Di luar jendela, perlakukan seperti endpoint admin.
+        await get_current_user(request)
     existing = reg.get("files", {})
     allowed = file_kinds_for_count(len(reg.get("member_names") or []))
     incoming = list(zip(ALL_FILE_KINDS, (
@@ -1611,12 +1632,30 @@ app.include_router(api_router)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Origin yang boleh memanggil API, disebut satu per satu.
+#
+# Sebelumnya dipakai pola bebas `(nusawiraga|web-nusa-wiraga)*.vercel.app`
+# supaya alias dan preview Vercel ikut lolos. Masalahnya siapa pun bisa
+# membuat proyek Vercel bernama "nusawiraga-apa-saja", dan karena kredensial
+# diizinkan sementara cookie admin memakai SameSite=None, halaman milik orang
+# lain itu bisa membaca — bahkan menghapus — data pendaftar lewat browser
+# admin yang sedang login.
+#
+# Konsekuensi yang disengaja: deployment preview Vercel tidak lagi bisa
+# memanggil API. Kalau suatu saat perlu, tambahkan alamatnya lewat
+# FRONTEND_URL, bukan dengan mengembalikan pola bebas.
+ALLOWED_ORIGINS = [
+    "https://nusawiraga.vercel.app",
+    "https://web-nusa-wiraga-teal.vercel.app",
+    "http://localhost:3000",
+]
+_frontend_url = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
+if _frontend_url and _frontend_url not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(_frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000"), "http://localhost:3000"],
-    # Vercel juga menyajikan situs ini lewat domain alias & preview
-    # (mis. web-nusa-wiraga-teal.vercel.app), yang harus ikut diizinkan.
-    allow_origin_regex=r"https://(nusawiraga|web-nusa-wiraga)[a-z0-9\-]*\.vercel\.app",
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
