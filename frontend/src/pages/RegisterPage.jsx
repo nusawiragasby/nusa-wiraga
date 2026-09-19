@@ -11,11 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { fileKindsForCount, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
+import { AGE_CLASSES, fileKindsForCount, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
-const AGE_CLASSES = ["Usia Dini (7-11 Thn)", "Pra Remaja (12-14 Thn)"];
 const WEIGHT_CLASSES = ["Kelas A (39-43 kg)", "Kelas B (43-47 kg)", "Kelas C (47-51 kg)", "Kelas D (51-55 kg)", "Kelas E (55-59 kg)", "Kelas F (59-63 kg)", "Bebas (>63 kg)"];
 
 const INITIAL = {

@@ -8,13 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
 import { generateMatches, propagate, roundsOf, roundLabel, derivedSlots } from "@/lib/bracket";
+import { AGE_CLASSES } from "@/lib/registration";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 focus-visible:ring-amber-500";
 const selCls = "h-8 w-full rounded-md border border-[#2E2E3A] bg-[#0B0B0E] px-2 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-amber-500";
 const uid = () => (crypto?.randomUUID?.() || `m-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
-const AGE_CLASSES = ["Usia Dini (7-11 Thn)", "Pra Remaja (12-14 Thn)"];
 const WEIGHT_CLASSES = ["Kelas A (39-43 kg)", "Kelas B (43-47 kg)", "Kelas C (47-51 kg)", "Kelas D (51-55 kg)", "Kelas E (55-59 kg)", "Kelas F (59-63 kg)", "Bebas (>63 kg)"];
 
 // Label atlet untuk ditaruh di slot bagan (nama + kontingen).

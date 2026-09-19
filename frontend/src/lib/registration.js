@@ -2,6 +2,15 @@
 // dasbor admin. Kembarannya ada di backend (member_count/file_kinds_for di
 // server.py) — ubah keduanya bila daftar kategori atau jenis berkas berubah.
 
+// Kelompok usia. Ditaruh di sini karena dipakai formulir pendaftaran dan
+// pengelola bagan — dulu masing-masing punya salinan sendiri dan berpotensi
+// berbeda diam-diam.
+export const AGE_CLASSES = [
+  "Usia Dini 1 (5-8 Thn)",
+  "Usia Dini 2 (8-11 Thn)",
+  "Pra Remaja (11-14 Thn)",
+];
+
 export const MAX_MEMBERS = 5;
 
 export const FILE_BASES = [
