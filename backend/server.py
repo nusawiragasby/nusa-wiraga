@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel, EmailStr, field_validator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -343,6 +344,14 @@ def run_detached(coro):
     task.add_done_callback(_detached_tasks.discard)
 
 
+async def next_reg_number() -> str:
+    """Nomor registrasi berikutnya, dihitung dari yang sudah terpakai."""
+    existing = await db.registrants.distinct("reg_number")
+    nums = [int(r.split("-")[1]) for r in existing
+            if r and r.startswith("NW26-") and r.split("-")[1].isdigit()]
+    return f"NW26-{(max(nums) + 1) if nums else 1:04d}"
+
+
 @api_router.post("/register")
 async def register(body: RegisterInput):
     if "Tanding" in body.category:
@@ -360,9 +369,6 @@ async def register(body: RegisterInput):
                       else f"Kategori {body.category} wajib diisi {minimal} sampai {maks_anggota} nama anggota")
             raise HTTPException(status_code=422, detail=detail)
         body.member_names = names
-    existing_numbers = await db.registrants.distinct("reg_number")
-    nums = [int(r.split("-")[1]) for r in existing_numbers if r and r.startswith("NW26-") and r.split("-")[1].isdigit()]
-    reg_number = f"NW26-{(max(nums) + 1) if nums else 1:04d}"
     reg_id = str(uuid.uuid4())
     doc = body.model_dump()
     draft_token = doc.pop("draft_token", None)
@@ -374,10 +380,9 @@ async def register(body: RegisterInput):
         except HTTPException:
             # Token kedaluwarsa tidak boleh menggagalkan pendaftaran: berkasnya
             # masih bisa menyusul lewat endpoint unggah biasa.
-            logger.info(f"Token draft tidak sah untuk {reg_number}, berkas menunggu unggahan ulang")
+            logger.info(f"Token draft tidak sah untuk {reg_id}, berkas menunggu unggahan ulang")
     doc.update({
         "id": reg_id,
-        "reg_number": reg_number,
         "files": files_map,
         "status": "menunggu",
         "payment_status": "belum_bayar",
@@ -388,7 +393,20 @@ async def register(body: RegisterInput):
         "sheet_synced": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
-    await db.registrants.insert_one(doc)
+    # Nomor diberikan di dalam perulangan: dua pendaftaran yang nyaris
+    # bersamaan menghitung nomor yang sama, dan index unik menolak yang kedua.
+    # Tanpa ini pendaftar yang kalah cepat hanya melihat error tanpa sebab.
+    for _ in range(6):
+        doc.pop("_id", None)
+        doc["reg_number"] = await next_reg_number()
+        try:
+            await db.registrants.insert_one(doc)
+            break
+        except DuplicateKeyError:
+            logger.info(f"Nomor {doc['reg_number']} keburu dipakai, mengambil nomor berikutnya")
+    else:
+        raise HTTPException(status_code=503, detail="Pendaftaran sedang ramai, mohon kirim ulang sebentar lagi")
+    reg_number = doc["reg_number"]
     doc.pop("_id", None)
     if doc.get("email"):
         run_detached(send_confirmation_email_safe(doc))
@@ -1361,6 +1379,29 @@ def _first_empty_row(service, sheet_id: str, title: str) -> int:
     return max(len(col) + 1, 2)
 
 
+def _append_row_verified(service, sheet_id: str, title: str, values: list, reg_number: str):
+    """Tulis baris baru, lalu pastikan baris itu benar-benar milik kita.
+
+    Dua pendaftaran yang nyaris bersamaan bisa mendapat nomor "baris kosong
+    pertama" yang sama, dan yang menulis belakangan menimpa yang duluan —
+    keduanya lalu ditandai tersinkron, sehingga yang tertimpa tidak pernah
+    kembali. Karena itu hasilnya dibaca ulang dan ditulis ke baris berikutnya
+    bila ternyata direbut.
+    """
+    for _ in range(3):
+        row_idx = _first_empty_row(service, sheet_id, title)
+        _write_sheet_row(service, sheet_id, title, values, row_idx)
+        terisi = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"'{title}'!A{row_idx}"
+        ).execute().get("values", [])
+        if terisi and terisi[0] and terisi[0][0] == reg_number:
+            return row_idx
+        logger.info(f"[SHEETS] Baris {row_idx} direbut pendaftar lain, {reg_number} ditulis ulang")
+    # Dibiarkan gagal supaya sheet_synced tetap False dan penyelaras berkala
+    # mencobanya lagi, bukan menganggapnya selesai.
+    raise RuntimeError(f"Gagal menempatkan baris {reg_number} di Sheets")
+
+
 def _write_sheet_row(service, sheet_id: str, title: str, values: list, row_idx: int):
     last_col = SHEET_LAST_COL
     service.spreadsheets().values().update(
@@ -1393,8 +1434,7 @@ async def append_registration_to_sheet(doc: dict):
                 spreadsheetId=sheet_id, range=f"'{title}'!{start_col}1",
                 valueInputOption="RAW", body={"values": [missing]},
             ).execute()
-        _write_sheet_row(service, sheet_id, title, row,
-                         _first_empty_row(service, sheet_id, title))
+        _append_row_verified(service, sheet_id, title, row, doc["reg_number"])
 
     await asyncio.to_thread(_append)
 
@@ -1412,8 +1452,7 @@ async def update_sheet_row(doc: dict):
         row_idx = next((i + 1 for i, r in enumerate(col) if r and r[0] == doc["reg_number"]), None)
         if not row_idx:
             logger.info(f"[SHEETS] Baris {doc['reg_number']} tidak ditemukan, ditambahkan sebagai baris baru")
-            _write_sheet_row(service, sheet_id, title, build_sheet_row(doc),
-                             _first_empty_row(service, sheet_id, title))
+            _append_row_verified(service, sheet_id, title, build_sheet_row(doc), doc["reg_number"])
             return
         # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
         # (dipanggil baik saat admin ubah status maupun saat berkas baru diunggah).

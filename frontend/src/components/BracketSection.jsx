@@ -65,8 +65,8 @@ const ListView = ({ matches }) => (
 );
 
 export const BracketSection = ({ brackets = [] }) => {
-  if (brackets.length === 0) return null; // Sembunyikan section kalau panitia belum membuat bagan.
-
+  // Section tetap dirender walau bagannya belum ada: menu "Bagan" menaut ke
+  // #bagan, dan kalau elemennya hilang tautan itu mati tanpa penjelasan.
   return (
     <section id="bagan" className="mx-auto max-w-7xl px-4 py-24 sm:px-6" data-testid="bracket-section">
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">Bagan Pertandingan</p>
@@ -76,6 +76,16 @@ export const BracketSection = ({ brackets = [] }) => {
       <p className="mt-2 max-w-2xl text-sm text-slate-400 sm:text-base">
         Bagan dan jadwal pertandingan yang disusun panitia. Diperbarui selama kejuaraan berlangsung.
       </p>
+      {brackets.length === 0 ? (
+        <div className="mt-10 rounded-2xl border border-dashed border-[#2E2E3A] bg-[#0B0B0E]/40 p-8 text-center"
+          data-testid="bracket-empty">
+          <GitFork className="mx-auto h-8 w-8 text-amber-400/70" />
+          <p className="mt-3 text-sm font-semibold text-slate-300">Bagan belum diumumkan</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Undian dan bagan pertandingan disusun setelah technical meeting, lalu ditayangkan di sini.
+          </p>
+        </div>
+      ) : (
       <div className="mt-10 space-y-8">
         {brackets.map((b, i) => (
           <Reveal key={b.id} delay={(i % 4) * 0.08}
@@ -85,6 +95,7 @@ export const BracketSection = ({ brackets = [] }) => {
           </Reveal>
         ))}
       </div>
+      )}
     </section>
   );
 };
