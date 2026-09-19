@@ -2,6 +2,19 @@
 // dasbor admin. Kembarannya ada di backend (member_count/file_kinds_for di
 // server.py) — ubah keduanya bila daftar kategori atau jenis berkas berubah.
 
+// Kategori yang dipertandingkan. Dipakai formulir pendaftaran, penyaring
+// dasbor, pengelola bagan, dan pengelola hasil — dulu keempatnya menyimpan
+// salinannya sendiri.
+export const CATEGORIES = [
+  "Tanding Putra",
+  "Tanding Putri",
+  "Seni Tunggal Putra",
+  "Seni Tunggal Putri",
+  "Seni Ganda Putra",
+  "Seni Ganda Putri",
+  "Berkelompok (Jurus Baku)",
+];
+
 // Kelompok usia. Ditaruh di sini karena dipakai formulir pendaftaran dan
 // pengelola bagan — dulu masing-masing punya salinan sendiri dan berpotensi
 // berbeda diam-diam.

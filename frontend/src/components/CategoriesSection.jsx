@@ -2,10 +2,10 @@ import { Link } from "react-router-dom";
 import { Reveal } from "@/components/Reveal";
 import { Swords, User, Users, Banknote } from "lucide-react";
 
-const CATEGORIES = [
-  { icon: Swords, name: "Tanding Putra / Putri", desc: "Kelas A - F dan Kelas Bebas, usia dini hingga dewasa.", fee: "Rp 160.000 / atlet" },
+const KARTU_KATEGORI = [
+  { icon: Swords, name: "Tanding Putra / Putri", desc: "Kelas Under 1 sampai M, menyesuaikan kelompok usia.", fee: "Rp 160.000 / atlet" },
   { icon: User, name: "Seni Tunggal", desc: "Jurus wajib tunggal putra & putri dengan senjata.", fee: "Rp 160.000 / atlet" },
-  { icon: Users, name: "Seni Ganda", desc: "Koreografi jurus berpasangan dengan serang bela.", fee: "Rp 160.000 / pasangan" },
+  { icon: Users, name: "Seni Ganda Putra / Putri", desc: "Koreografi jurus berpasangan dengan serang bela.", fee: "Rp 160.000 / pasangan" },
   { icon: Users, name: "Seni Berkelompok (Jurus Baku)", desc: "Kekompakan regu dalam jurus baku.", fee: "Rp 160.000 / regu" },
 ];
 
@@ -17,7 +17,7 @@ export const CategoriesSection = () => (
         Pilih Medan <span className="text-gold-gradient">Pengabdianmu</span>
       </h2>
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {CATEGORIES.map((c, i) => (
+        {KARTU_KATEGORI.map((c, i) => (
           <Reveal key={c.name} delay={i * 0.08}
             className="group rounded-2xl border border-[#2E2E3A] bg-[#1C1C24] p-6 transition-all hover:-translate-y-2 hover:border-amber-500/40"
             data-testid={`category-card-${i}`}>

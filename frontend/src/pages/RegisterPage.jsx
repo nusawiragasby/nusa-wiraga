@@ -11,10 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { AGE_CLASSES, fileKindsForCount, memberCount, memberLabel, minMemberCount, weightClassesFor } from "@/lib/registration";
+import { AGE_CLASSES, CATEGORIES, fileKindsForCount, memberCount, memberLabel, minMemberCount, weightClassesFor } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
-const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
 
 const INITIAL = {
   full_name: "", contingent_school: "", category: "", age_class: "", weight_class: "", height_cm: "", official_coach: "",

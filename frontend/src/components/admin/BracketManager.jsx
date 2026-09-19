@@ -8,13 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
 import { generateMatches, propagate, roundsOf, roundLabel, derivedSlots } from "@/lib/bracket";
-import { AGE_CLASSES, ALL_WEIGHT_CLASSES, weightClassesFor } from "@/lib/registration";
+import { AGE_CLASSES, ALL_WEIGHT_CLASSES, CATEGORIES, weightClassesFor } from "@/lib/registration";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 focus-visible:ring-amber-500";
 const selCls = "h-8 w-full rounded-md border border-[#2E2E3A] bg-[#0B0B0E] px-2 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-amber-500";
 const uid = () => (crypto?.randomUUID?.() || `m-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
 
 // Label atlet untuk ditaruh di slot bagan (nama + kontingen).
 const athleteLabel = (a) =>

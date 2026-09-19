@@ -13,7 +13,7 @@ import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
-import { FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
+import { CATEGORIES, FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
 
 // Regu boleh beranggota 3-5 orang, jadi jumlah berkas yang diharapkan
 // mengikuti anggota pendaftar itu sendiri, bukan batas kategorinya.
@@ -21,7 +21,6 @@ const jumlahAnggota = (r) => Math.max(r?.member_names?.length || 1, 1);
 
 const KIND_ICON = { data_diri: FileText, surat_sehat: HeartPulse, foto: ImageIcon };
 
-const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
 const STATUS_LABEL = { menunggu: "Menunggu", terverifikasi: "Terverifikasi", ditolak: "Ditolak" };
 const STATUS_STYLE = {
   menunggu: "bg-amber-500/15 text-amber-400 border-amber-500/30",
