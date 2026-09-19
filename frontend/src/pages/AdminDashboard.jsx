@@ -9,10 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { NewsManager } from "@/components/admin/NewsManager";
 import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
-import { GalleryManager } from "@/components/admin/GalleryManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
 import { FILE_BASES, fileKindsFor, fileSetCount, kindFor, memberLabel } from "@/lib/registration";
@@ -193,10 +191,8 @@ export default function AdminDashboard() {
         <Tabs defaultValue="pendaftar" className="mt-8">
           <TabsList className="border border-[#2E2E3A] bg-[#13131A]" data-testid="admin-tabs">
             <TabsTrigger value="pendaftar" data-testid="admin-tab-pendaftar">Pendaftar</TabsTrigger>
-            <TabsTrigger value="berita" data-testid="admin-tab-berita">Berita</TabsTrigger>
             <TabsTrigger value="juara" data-testid="admin-tab-juara">Hasil & Juara</TabsTrigger>
             <TabsTrigger value="sponsor" data-testid="admin-tab-sponsor">Sponsor</TabsTrigger>
-            <TabsTrigger value="galeri" data-testid="admin-tab-galeri">Galeri</TabsTrigger>
             <TabsTrigger value="bagan" data-testid="admin-tab-bagan">Bagan</TabsTrigger>
           </TabsList>
           <TabsContent value="pendaftar">
@@ -363,10 +359,8 @@ export default function AdminDashboard() {
           </Table>
         </div>
           </TabsContent>
-          <TabsContent value="berita"><NewsManager /></TabsContent>
           <TabsContent value="juara"><ResultsManager /></TabsContent>
           <TabsContent value="sponsor"><SponsorsManager /></TabsContent>
-          <TabsContent value="galeri"><GalleryManager /></TabsContent>
           <TabsContent value="bagan"><BracketManager /></TabsContent>
         </Tabs>
       </main>
