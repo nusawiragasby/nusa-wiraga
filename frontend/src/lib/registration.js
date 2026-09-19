@@ -15,16 +15,19 @@ export const FILE_BASES = [
 export const kindFor = (base, memberIndex) =>
   (memberIndex === 0 ? base : `${base}_${memberIndex + 1}`);
 
-// Jumlah nama anggota yang wajib diisi kategori ini (0 = atlet tunggal).
+// Jumlah anggota terbanyak yang boleh didaftarkan kategori ini
+// (0 = atlet tunggal).
 export const memberCount = (category = "") =>
   category.includes("Berkelompok") ? MAX_MEMBERS : category.includes("Ganda") ? 2 : 0;
 
-// Satu set berkas per anggota; atlet tunggal tetap satu set.
-export const fileSetCount = (category = "") => Math.max(memberCount(category), 1);
+// Jumlah anggota yang wajib ada. Berkelompok cukup 3 orang; anggota ke-4 dan
+// ke-5 opsional, jadi regu kecil tetap bisa mendaftar.
+export const minMemberCount = (category = "") =>
+  category.includes("Berkelompok") ? 3 : category.includes("Ganda") ? 2 : 0;
 
-// Semua berkas wajib kategori ini, berurutan per anggota.
-export const fileKindsFor = (category = "") =>
-  Array.from({ length: fileSetCount(category) }, (_, member) =>
+// Semua berkas untuk sejumlah anggota, berurutan per anggota.
+export const fileKindsForCount = (jumlah) =>
+  Array.from({ length: Math.max(jumlah, 1) }, (_, member) =>
     FILE_BASES.map((b) => ({ ...b, member, key: kindFor(b.base, member) }))).flat();
 
 export const memberLabel = (index, total) =>

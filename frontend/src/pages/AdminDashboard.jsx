@@ -13,7 +13,11 @@ import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
-import { FILE_BASES, fileKindsFor, fileSetCount, kindFor, memberLabel } from "@/lib/registration";
+import { FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
+
+// Regu boleh beranggota 3-5 orang, jadi jumlah berkas yang diharapkan
+// mengikuti anggota pendaftar itu sendiri, bukan batas kategorinya.
+const jumlahAnggota = (r) => Math.max(r?.member_names?.length || 1, 1);
 
 const KIND_ICON = { data_diri: FileText, surat_sehat: HeartPulse, foto: ImageIcon };
 
@@ -328,7 +332,7 @@ export default function AdminDashboard() {
                   <TableCell className="text-right">
                     <div className="flex flex-wrap justify-end gap-2">
                       {(() => {
-                        const kinds = fileKindsFor(r.category);
+                        const kinds = fileKindsForCount(jumlahAnggota(r));
                         const ada = kinds.filter((k) => r.files?.[k.key]).length;
                         return (
                           <button type="button" onClick={() => setFilesOf(r)}
@@ -374,12 +378,12 @@ export default function AdminDashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {filesOf && Array.from({ length: fileSetCount(filesOf.category) }, (_, i) => {
+            {filesOf && Array.from({ length: jumlahAnggota(filesOf) }, (_, i) => {
               const nama = filesOf.member_names?.[i] || (i === 0 ? filesOf.full_name : "");
               return (
                 <div key={i} className="rounded-xl border border-[#2E2E3A] bg-[#0B0B0E] p-3">
                   <div className="mb-2 flex items-baseline gap-2">
-                    <span className="text-xs font-bold text-slate-200">{memberLabel(i, fileSetCount(filesOf.category))}</span>
+                    <span className="text-xs font-bold text-slate-200">{memberLabel(i, jumlahAnggota(filesOf))}</span>
                     <span className="truncate text-xs text-slate-500">{nama}</span>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3">

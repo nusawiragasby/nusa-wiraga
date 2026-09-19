@@ -71,9 +71,22 @@ PHOTO_KINDS = member_kinds("foto")
 
 
 def member_count(category: str) -> int:
-    """Jumlah nama anggota yang wajib diisi kategori ini (0 = atlet tunggal)."""
+    """Jumlah anggota terbanyak untuk kategori ini (0 = atlet tunggal)."""
     if "Berkelompok" in category:
         return MAX_MEMBERS
+    if "Ganda" in category:
+        return 2
+    return 0
+
+
+def min_member_count(category: str) -> int:
+    """Jumlah anggota yang wajib ada.
+
+    Berkelompok cukup bertiga; anggota ke-4 dan ke-5 opsional, supaya regu
+    kecil tidak terhalang mendaftar.
+    """
+    if "Berkelompok" in category:
+        return 3
     if "Ganda" in category:
         return 2
     return 0
@@ -84,10 +97,15 @@ def file_sets(category: str) -> int:
     return max(member_count(category), 1)
 
 
-def file_kinds_for(category: str) -> List[str]:
-    """Kind berkas yang berlaku untuk kategori ini."""
-    sets = file_sets(category)
+def file_kinds_for_count(jumlah: int) -> List[str]:
+    """Kind berkas untuk sejumlah anggota."""
+    sets = max(jumlah, 1)
     return [kind for base in FILE_BASE_KINDS for kind in member_kinds(base)[:sets]]
+
+
+def file_kinds_for(category: str) -> List[str]:
+    """Kind berkas terbanyak yang mungkin dipakai kategori ini."""
+    return file_kinds_for_count(file_sets(category))
 
 
 def hash_password(password: str) -> str:
@@ -332,11 +350,15 @@ async def register(body: RegisterInput):
             raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
         if not body.height_cm:
             raise HTTPException(status_code=422, detail="Tinggi badan wajib diisi untuk kategori Tanding")
-    required_members = member_count(body.category)
-    if required_members:
+    maks_anggota = member_count(body.category)
+    if maks_anggota:
         names = [n.strip() for n in (body.member_names or []) if n and n.strip()]
-        if len(names) != required_members:
-            raise HTTPException(status_code=422, detail=f"Kategori {body.category} wajib diisi tepat {required_members} nama anggota")
+        minimal = min_member_count(body.category)
+        if not minimal <= len(names) <= maks_anggota:
+            detail = (f"Kategori {body.category} wajib diisi tepat {maks_anggota} nama anggota"
+                      if minimal == maks_anggota
+                      else f"Kategori {body.category} wajib diisi {minimal} sampai {maks_anggota} nama anggota")
+            raise HTTPException(status_code=422, detail=detail)
         body.member_names = names
     existing_numbers = await db.registrants.distinct("reg_number")
     nums = [int(r.split("-")[1]) for r in existing_numbers if r and r.startswith("NW26-") and r.split("-")[1].isdigit()]
@@ -347,7 +369,8 @@ async def register(body: RegisterInput):
     files_map = {}
     if draft_token:
         try:
-            files_map = await claim_draft_files(read_draft_token(draft_token), reg_id, body.category)
+            files_map = await claim_draft_files(
+                read_draft_token(draft_token), reg_id, len(body.member_names or []))
         except HTTPException:
             # Token kedaluwarsa tidak boleh menggagalkan pendaftaran: berkasnya
             # masih bisa menyusul lewat endpoint unggah biasa.
@@ -709,9 +732,13 @@ async def upload_draft_file(
     return {"kind": kind, "uploaded": True}
 
 
-async def claim_draft_files(draft_id: str, reg_id: str, category: str) -> dict:
-    """Pindahkan berkas draft menjadi milik pendaftar yang baru dibuat."""
-    allowed = set(file_kinds_for(category))
+async def claim_draft_files(draft_id: str, reg_id: str, jumlah_anggota: int) -> dict:
+    """Pindahkan berkas draft menjadi milik pendaftar yang baru dibuat.
+
+    Hanya berkas milik anggota yang benar-benar terdaftar yang ikut; sisanya
+    ditinggal di folder draft dan dibuang penyelaras berkala.
+    """
+    allowed = set(file_kinds_for_count(jumlah_anggota))
 
     def _move():
         src_dir = UPLOAD_DIR / DRAFT_DIR / draft_id
@@ -778,7 +805,7 @@ async def upload_registration_files(
     if not reg:
         raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
     existing = reg.get("files", {})
-    allowed = file_kinds_for(reg.get("category", ""))
+    allowed = file_kinds_for_count(len(reg.get("member_names") or []))
     incoming = list(zip(ALL_FILE_KINDS, (
         data_diri, data_diri_2, data_diri_3, data_diri_4, data_diri_5,
         surat_sehat, surat_sehat_2, surat_sehat_3, surat_sehat_4, surat_sehat_5,
@@ -791,7 +818,7 @@ async def upload_registration_files(
         if kind not in allowed:
             raise HTTPException(
                 status_code=422,
-                detail=f"Kategori {reg.get('category')} hanya memerlukan berkas untuk {file_sets(reg.get('category', ''))} anggota",
+                detail=f"Pendaftar {reg.get('reg_number')} hanya memerlukan berkas untuk {max(len(reg.get('member_names') or []), 1)} anggota",
             )
         data, ext = await read_valid_upload(file, kind)
         file_id = await put_object(

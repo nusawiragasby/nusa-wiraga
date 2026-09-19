@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { fileKindsFor, fileSetCount, memberCount, memberLabel } from "@/lib/registration";
+import { fileKindsForCount, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
@@ -75,11 +75,24 @@ export default function RegisterPage() {
   const mulaiPendaftaranBaru = () => window.location.assign(window.location.pathname);
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
+  const minAnggota = minMemberCount(form.category);
   const isGroup = groupSize > 0;
-  // Satu set berkas (data diri, surat sehat, pas foto) per anggota.
-  const setCount = fileSetCount(form.category);
-  const fileFields = fileKindsFor(form.category);
   const memberNames = [form.full_name, ...members.slice(0, Math.max(groupSize - 1, 0))];
+
+  // Anggota dihitung berurutan dari atas dan berhenti di kolom kosong
+  // pertama: anggota ke-4 dan ke-5 opsional, jadi regu bertiga pun sah.
+  const namaTerisi = [];
+  for (const n of memberNames) {
+    if (!n?.trim()) break;
+    namaTerisi.push(n.trim());
+  }
+  // Nama yang diisi setelah kolom kosong tidak terhitung — itu keliru dan
+  // diberitahukan saat submit, bukan diam-diam dibuang.
+  const adaLubang = memberNames.some((n, i) => !n?.trim() && memberNames.slice(i + 1).some((m) => m?.trim()));
+  // Panel berkas mengikuti jumlah anggota yang diisi, tapi minimal sebanyak
+  // yang diwajibkan supaya pendaftar melihat apa saja yang masih kurang.
+  const setCount = isGroup ? Math.max(namaTerisi.length, minAnggota) : 1;
+  const fileFields = fileKindsForCount(setCount);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
@@ -119,6 +132,14 @@ export default function RegisterPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (isGroup && adaLubang) {
+      toast.error("Isi nama anggota berurutan dari atas — jangan ada yang dilewati.");
+      return;
+    }
+    if (isGroup && namaTerisi.length < minAnggota) {
+      toast.error(`Kategori ${form.category} wajib diisi minimal ${minAnggota} nama anggota.`);
+      return;
+    }
     const missing = fileFields.filter((f) => !files[f.key]);
     if (missing.length > 0) {
       const name = (f) => (setCount > 1 ? `${memberLabel(f.member, setCount)}: ${f.label}` : f.label);
@@ -136,7 +157,7 @@ export default function RegisterPage() {
       Object.keys(payload).forEach((k) => {
         if (typeof payload[k] === "string" && !payload[k].trim()) delete payload[k];
       });
-      if (isGroup) payload.member_names = [form.full_name, ...members.slice(0, groupSize - 1)];
+      if (isGroup) payload.member_names = namaTerisi;
       if (draftToken.current) payload.draft_token = draftToken.current;
       // Unggahan latar yang masih berjalan ditunggu dulu; biasanya sudah
       // selesai jauh sebelum tombol ditekan.
@@ -203,13 +224,19 @@ export default function RegisterPage() {
                 <Input id="full_name" required data-testid="reg-fullname-input" className={inputCls}
                   value={form.full_name} onChange={set("full_name")} placeholder="cth: Bima Sakti Pratama" />
               </div>
-              {isGroup && members.slice(0, groupSize - 1).map((m, i) => (
-                <div className="space-y-2" key={i}>
-                  <Label htmlFor={`member-${i + 2}`}>Nama Anggota {i + 2}</Label>
-                  <Input id={`member-${i + 2}`} required data-testid={`reg-member-${i + 2}-input`} className={inputCls}
-                    value={m} onChange={setMember(i)} placeholder={`cth: Nama anggota ${i + 2}`} />
-                </div>
-              ))}
+              {isGroup && members.slice(0, groupSize - 1).map((m, i) => {
+                const wajib = i + 2 <= minAnggota;
+                return (
+                  <div className="space-y-2" key={i}>
+                    <Label htmlFor={`member-${i + 2}`}>
+                      Nama Anggota {i + 2}
+                      {!wajib && <span className="ml-1 text-slate-500">(opsional)</span>}
+                    </Label>
+                    <Input id={`member-${i + 2}`} required={wajib} data-testid={`reg-member-${i + 2}-input`} className={inputCls}
+                      value={m} onChange={setMember(i)} placeholder={`cth: Nama anggota ${i + 2}`} />
+                  </div>
+                );
+              })}
               <div className="space-y-2">
                 <Label htmlFor="school">Kontingen / Asal Sekolah</Label>
                 <Input id="school" required data-testid="reg-contingent-input" className={inputCls}
@@ -267,18 +294,20 @@ export default function RegisterPage() {
                 ) : (
                   <>
                     <p className="text-xs text-slate-400" data-testid="reg-files-hint">
-                      Tiap anggota melampirkan 3 berkas sendiri ({groupSize * 3} berkas). Ketuk nama anggota untuk membukanya.
+                      Tiap anggota melampirkan 3 berkas sendiri ({setCount * 3} berkas)
+                      {groupSize > minAnggota && `; anggota ${minAnggota + 1}-${groupSize} opsional, panelnya muncul begitu namanya diisi`}.
+                      Ketuk nama anggota untuk membukanya.
                     </p>
                     <Accordion type="multiple" defaultValue={["m0"]}
                       className="overflow-hidden rounded-xl border border-[#2E2E3A] bg-[#0B0B0E]">
-                      {Array.from({ length: groupSize }, (_, i) => {
+                      {Array.from({ length: setCount }, (_, i) => {
                         const fields = fileFields.filter((f) => f.member === i);
                         const done = fields.filter((f) => files[f.key]).length;
                         return (
                           <AccordionItem key={i} value={`m${i}`} className="border-[#2E2E3A] px-3 last:border-b-0">
                             <AccordionTrigger className="py-3 hover:no-underline" data-testid={`reg-member-files-${i + 1}`}>
                               <span className="flex min-w-0 flex-1 items-center gap-2 pr-2">
-                                <span className="shrink-0 text-xs font-bold text-slate-200">{memberLabel(i, groupSize)}</span>
+                                <span className="shrink-0 text-xs font-bold text-slate-200">{memberLabel(i, setCount)}</span>
                                 <span className="min-w-0 truncate text-xs text-slate-500">
                                   {memberNames[i]?.trim() || "nama belum diisi"}
                                 </span>
