@@ -8,14 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
 import { generateMatches, propagate, roundsOf, roundLabel, derivedSlots } from "@/lib/bracket";
-import { AGE_CLASSES } from "@/lib/registration";
+import { AGE_CLASSES, ALL_WEIGHT_CLASSES, weightClassesFor } from "@/lib/registration";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 focus-visible:ring-amber-500";
 const selCls = "h-8 w-full rounded-md border border-[#2E2E3A] bg-[#0B0B0E] px-2 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-amber-500";
 const uid = () => (crypto?.randomUUID?.() || `m-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
-const WEIGHT_CLASSES = ["Kelas A (39-43 kg)", "Kelas B (43-47 kg)", "Kelas C (47-51 kg)", "Kelas D (51-55 kg)", "Kelas E (55-59 kg)", "Kelas F (59-63 kg)", "Bebas (>63 kg)"];
 
 // Label atlet untuk ditaruh di slot bagan (nama + kontingen).
 const athleteLabel = (a) =>
@@ -80,14 +79,18 @@ const AutofillBar = ({ fCat, setFCat, fAge, setFAge, fWeight, setFWeight, count,
           <option value="">Semua Kategori</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={fAge} onChange={(e) => setFAge(e.target.value)} className={`${selCls} w-auto`} data-testid="autofill-age">
+        {/* Ganti kelompok usia -> filter kelas ikut dikosongkan, karena tiap
+            kelompok punya daftar kelasnya sendiri dan sisa pilihan lama akan
+            menyaring habis seluruh atlet tanpa terlihat sebabnya. */}
+        <select value={fAge} onChange={(e) => { setFAge(e.target.value); setFWeight(""); }}
+          className={`${selCls} w-auto`} data-testid="autofill-age">
           <option value="">Semua Usia</option>
           {AGE_CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         {showWeight && (
           <select value={fWeight} onChange={(e) => setFWeight(e.target.value)} className={`${selCls} w-auto`} data-testid="autofill-weight">
             <option value="">Semua Kelas</option>
-            {WEIGHT_CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {(fAge ? weightClassesFor(fAge) : ALL_WEIGHT_CLASSES).map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
         <Button type="button" onClick={onFill} disabled={count === 0} data-testid="autofill-btn"

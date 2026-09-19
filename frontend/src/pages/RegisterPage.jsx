@@ -11,11 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { AGE_CLASSES, fileKindsForCount, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
+import { AGE_CLASSES, fileKindsForCount, memberCount, memberLabel, minMemberCount, weightClassesFor } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 const CATEGORIES = ["Tanding Putra", "Tanding Putri", "Seni Tunggal Putra", "Seni Tunggal Putri", "Seni Ganda", "Berkelompok (Jurus Baku)"];
-const WEIGHT_CLASSES = ["Kelas A (39-43 kg)", "Kelas B (43-47 kg)", "Kelas C (47-51 kg)", "Kelas D (51-55 kg)", "Kelas E (55-59 kg)", "Kelas F (59-63 kg)", "Bebas (>63 kg)"];
 
 const INITIAL = {
   full_name: "", contingent_school: "", category: "", age_class: "", weight_class: "", height_cm: "", official_coach: "",
@@ -93,6 +92,11 @@ export default function RegisterPage() {
   const setCount = isGroup ? Math.max(namaTerisi.length, minAnggota) : 1;
   const fileFields = fileKindsForCount(setCount);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
+  // Kelas tanding berbeda per kelompok usia, jadi pilihan lama dikosongkan
+  // saat kelompoknya diganti — kalau tidak, kelas milik kelompok lain bisa
+  // ikut terkirim.
+  const setAgeClass = (v) => setForm((f) => ({ ...f, age_class: v, weight_class: "" }));
+  const kelasBerat = weightClassesFor(form.age_class);
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
   const ensureDraftToken = async () => {
@@ -252,7 +256,7 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label>Kelompok Usia</Label>
-                <Select required value={form.age_class} onValueChange={set("age_class")}>
+                <Select required value={form.age_class} onValueChange={setAgeClass}>
                   <SelectTrigger data-testid="reg-age-select" className={inputCls}><SelectValue placeholder="Pilih kelompok usia" /></SelectTrigger>
                   <SelectContent className="border-[#2E2E3A] bg-[#1C1C24] text-slate-100">
                     {AGE_CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -262,10 +266,12 @@ export default function RegisterPage() {
               {isTanding && (
                 <div className="space-y-2">
                   <Label>Kelas Tanding (Berat Badan)</Label>
-                  <Select value={form.weight_class} onValueChange={set("weight_class")}>
-                    <SelectTrigger data-testid="reg-weight-select" className={inputCls}><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                  <Select value={form.weight_class} onValueChange={set("weight_class")} disabled={kelasBerat.length === 0}>
+                    <SelectTrigger data-testid="reg-weight-select" className={inputCls}>
+                      <SelectValue placeholder={kelasBerat.length ? "Pilih kelas" : "Pilih kelompok usia dulu"} />
+                    </SelectTrigger>
                     <SelectContent className="border-[#2E2E3A] bg-[#1C1C24] text-slate-100">
-                      {WEIGHT_CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {kelasBerat.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
