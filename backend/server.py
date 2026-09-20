@@ -1400,22 +1400,57 @@ def _first_empty_row(service, sheet_id: str, title: str) -> int:
     return max(len(col) + 1, 2)
 
 
-def _append_row_verified(service, sheet_id: str, title: str, values: list, reg_number: str):
-    """Tulis baris baru, lalu pastikan baris itu benar-benar milik kita.
+def _baris_nomor(service, sheet_id: str, title: str, reg_number: str) -> list:
+    """Nomor baris (1-based) yang kolom A-nya berisi nomor registrasi ini."""
+    col = service.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range=f"'{title}'!A:A"
+    ).execute().get("values", [])
+    return [i + 1 for i, r in enumerate(col) if r and r[0] == reg_number]
 
-    Dua pendaftaran yang nyaris bersamaan bisa mendapat nomor "baris kosong
-    pertama" yang sama, dan yang menulis belakangan menimpa yang duluan —
-    keduanya lalu ditandai tersinkron, sehingga yang tertimpa tidak pernah
-    kembali. Karena itu hasilnya dibaca ulang dan ditulis ke baris berikutnya
-    bila ternyata direbut.
+
+def _hapus_baris(service, sheet_id: str, gid: int, baris: list):
+    """Hapus baris-baris tertentu, dari bawah ke atas agar nomornya tidak geser."""
+    if not baris:
+        return
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id,
+        body={"requests": [
+            {"deleteDimension": {"range": {
+                "sheetId": gid, "dimension": "ROWS",
+                "startIndex": b - 1, "endIndex": b,
+            }}} for b in sorted(baris, reverse=True)
+        ]},
+    ).execute()
+
+
+def _upsert_row(service, sheet_id: str, title: str, gid: int, values: list, reg_number: str):
+    """Tulis baris pendaftar: perbarui bila sudah ada, tambahkan bila belum.
+
+    Dulu jalur penulisan langsung selalu MENAMBAH baris tanpa memeriksa.
+    Kalau penyelaras berkala keburu menuliskan pendaftar yang sama — mudah
+    terjadi karena penulisan langsung sering tersendat cold start — barisnya
+    jadi dua. Sekarang kedua jalur memakai fungsi ini, dan baris kembar yang
+    terlanjur ada ikut dibuang.
     """
+    ada = _baris_nomor(service, sheet_id, title, reg_number)
+    if ada:
+        _write_sheet_row(service, sheet_id, title, values, ada[0])
+        if len(ada) > 1:
+            _hapus_baris(service, sheet_id, gid, ada[1:])
+            logger.info(f"[SHEETS] {len(ada) - 1} baris kembar {reg_number} dibuang")
+        return ada[0]
+
     for _ in range(3):
         row_idx = _first_empty_row(service, sheet_id, title)
         _write_sheet_row(service, sheet_id, title, values, row_idx)
-        terisi = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id, range=f"'{title}'!A{row_idx}"
-        ).execute().get("values", [])
-        if terisi and terisi[0] and terisi[0][0] == reg_number:
+        # Dibaca ulang: proses lain bisa merebut baris kosong yang sama, dan
+        # bisa juga menuliskan pendaftar ini berbarengan.
+        sesudah = _baris_nomor(service, sheet_id, title, reg_number)
+        if row_idx in sesudah:
+            kembar = [b for b in sesudah if b != row_idx]
+            if kembar:
+                _hapus_baris(service, sheet_id, gid, kembar)
+                logger.info(f"[SHEETS] {len(kembar)} baris kembar {reg_number} dibuang")
             return row_idx
         logger.info(f"[SHEETS] Baris {row_idx} direbut pendaftar lain, {reg_number} ditulis ulang")
     # Dibiarkan gagal supaya sheet_synced tetap False dan penyelaras berkala
@@ -1440,7 +1475,8 @@ async def append_registration_to_sheet(doc: dict):
     last_col = SHEET_LAST_COL
 
     def _append():
-        title = _sheet_props(service, sheet_id)["title"]
+        props = _sheet_props(service, sheet_id)
+        title, gid = props["title"], props["sheetId"]
         existing = service.spreadsheets().values().get(
             spreadsheetId=sheet_id, range=f"'{title}'!A1:{last_col}1"
         ).execute().get("values", [])
@@ -1455,7 +1491,7 @@ async def append_registration_to_sheet(doc: dict):
                 spreadsheetId=sheet_id, range=f"'{title}'!{start_col}1",
                 valueInputOption="RAW", body={"values": [missing]},
             ).execute()
-        _append_row_verified(service, sheet_id, title, row, doc["reg_number"])
+        _upsert_row(service, sheet_id, title, gid, row, doc["reg_number"])
 
     await asyncio.to_thread(_append)
 
@@ -1466,24 +1502,25 @@ async def update_sheet_row(doc: dict):
         return
 
     def _update():
-        title = _sheet_props(service, sheet_id)["title"]
-        col = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id, range=f"'{title}'!A:A"
-        ).execute().get("values", [])
-        row_idx = next((i + 1 for i, r in enumerate(col) if r and r[0] == doc["reg_number"]), None)
-        if not row_idx:
+        props = _sheet_props(service, sheet_id)
+        title, gid = props["title"], props["sheetId"]
+        baris = _baris_nomor(service, sheet_id, title, doc["reg_number"])
+        if not baris:
             logger.info(f"[SHEETS] Baris {doc['reg_number']} tidak ditemukan, ditambahkan sebagai baris baru")
-            _append_row_verified(service, sheet_id, title, build_sheet_row(doc), doc["reg_number"])
+            _upsert_row(service, sheet_id, title, gid, build_sheet_row(doc), doc["reg_number"])
             return
         # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
         # (dipanggil baik saat admin ubah status maupun saat berkas baru diunggah).
-        last_col = SHEET_LAST_COL
+        # Kolom A-J tidak disentuh supaya koreksi manual panitia tidak hilang.
         row = build_sheet_row(doc)
         service.spreadsheets().values().update(
-            spreadsheetId=sheet_id, range=f"'{title}'!K{row_idx}:{last_col}{row_idx}",
+            spreadsheetId=sheet_id, range=f"'{title}'!K{baris[0]}:{SHEET_LAST_COL}{baris[0]}",
             valueInputOption="USER_ENTERED",
             body={"values": [row[10:]]},
         ).execute()
+        if len(baris) > 1:
+            _hapus_baris(service, sheet_id, gid, baris[1:])
+            logger.info(f"[SHEETS] {len(baris) - 1} baris kembar {doc['reg_number']} dibuang")
 
     await asyncio.to_thread(_update)
 
@@ -1537,6 +1574,41 @@ async def rewrite_all_sheet_rows() -> int:
     await db.registrants.update_many({}, {"$set": {"sheet_synced": True}})
     logger.info(f"[SHEETS] Susunan diperbarui: {len(docs)} baris, {len(SHEET_HEADER)} kolom")
     return len(docs)
+
+
+async def sapu_baris_kembar() -> int:
+    """Buang baris yang nomor registrasinya sudah muncul di baris sebelumnya.
+
+    Jaring pengaman: duplikat yang terlanjur terbentuk sebelum penulisan
+    memakai upsert tidak akan hilang sendiri kalau pendaftarnya tidak pernah
+    disentuh lagi. Hanya baris kembar yang dibuang — kemunculan pertama tiap
+    nomor selalu dipertahankan.
+    """
+    service, sheet_id = get_sheets_service()
+    if not service:
+        return 0
+
+    def _sapu():
+        props = _sheet_props(service, sheet_id)
+        title, gid = props["title"], props["sheetId"]
+        col = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"'{title}'!A:A"
+        ).execute().get("values", [])
+        terlihat, kembar = set(), []
+        for i, r in enumerate(col):
+            if i == 0:
+                continue  # baris judul
+            nomor = (r[0] if r else "").strip()
+            if not nomor:
+                continue
+            if nomor in terlihat:
+                kembar.append(i + 1)
+            else:
+                terlihat.add(nomor)
+        _hapus_baris(service, sheet_id, gid, kembar)
+        return len(kembar)
+
+    return await asyncio.to_thread(_sapu)
 
 
 async def delete_sheet_row(reg_number: str):
@@ -1607,6 +1679,13 @@ async def resync_sheets(request: Request, key: str = "", limit: int = 25):
             logger.error(f"Penyelarasan {doc.get('reg_number')} gagal: {e}")
     if synced or failed:
         logger.info(f"[SHEETS] Penyelarasan: {synced} terkirim, {failed} gagal")
+    try:
+        kembar = await sapu_baris_kembar()
+        if kembar:
+            logger.info(f"[SHEETS] Penyapuan: {kembar} baris kembar dibuang")
+    except Exception as e:
+        _sheet_meta_cache.clear()
+        logger.error(f"Gagal menyapu baris kembar: {e}")
     dibuang = await purge_stale_drafts()
     if dibuang:
         logger.info(f"[DRAFT] {dibuang} formulir terbengkalai dibersihkan")
