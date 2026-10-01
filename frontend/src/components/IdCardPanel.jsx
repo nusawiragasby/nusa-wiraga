@@ -9,8 +9,9 @@ import { siapkanHapusLatar } from "@/lib/hapusLatar";
  * sendiri). Satu tombol per anggota.
  *
  * peserta: [{ nama, ambilFoto: () => Promise<Blob> }]
+ * kelas: baris kelas/kategori (lihat kelasAtauKategori di lib/idCard.js)
  */
-export function IdCardPanel({ peserta, kontingen, regNumber, testId = "idcard-panel" }) {
+export function IdCardPanel({ peserta, kelas, kontingen, regNumber, testId = "idcard-panel" }) {
   const [sibuk, setSibuk] = useState(null);
 
   // Model pembuang latar ~25 MB; unduhannya dimulai begitu tombol tampil,
@@ -21,7 +22,7 @@ export function IdCardPanel({ peserta, kontingen, regNumber, testId = "idcard-pa
     setSibuk(i);
     try {
       const foto = await peserta[i].ambilFoto();
-      const { blob, latarDihapus } = await buatIdCard({ nama: peserta[i].nama, kontingen, foto });
+      const { blob, latarDihapus } = await buatIdCard({ nama: peserta[i].nama, kelas, kontingen, foto });
       if (!latarDihapus) {
         toast.warning(`Latar foto ${peserta[i].nama} gagal dihapus, ID card memakai foto asli.`);
       }

@@ -14,6 +14,7 @@ import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { EditRegistrantDialog } from "@/components/admin/EditRegistrantDialog";
 import { IdCardPanel } from "@/components/IdCardPanel";
+import { kelasAtauKategori } from "@/lib/idCard";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
 import { CATEGORIES, FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
@@ -427,6 +428,7 @@ export default function AdminDashboard() {
                         hilang, panitia mengunduhnya di sini lalu mengirimkannya. */}
                     {filesOf.files?.[kindFor("foto", i)] && (
                       <IdCardPanel key={`${filesOf.id}-${i}`} regNumber={filesOf.reg_number} kontingen={filesOf.contingent_school}
+                        kelas={kelasAtauKategori(filesOf)}
                         testId={`admin-idcard-${i}`}
                         peserta={[{ nama, ambilFoto: async () =>
                           (await api.get(`/admin/files/${filesOf.id}/${kindFor("foto", i)}`, { responseType: "blob" })).data }]} />
