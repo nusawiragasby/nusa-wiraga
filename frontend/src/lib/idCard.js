@@ -2,14 +2,20 @@
 //
 // Template (public/idcard/template.webp) sudah dibersihkan dari tulisan
 // contoh "NAMA"/"KONTINGEN", dan pemandangan contoh di jendela fotonya dibuat
-// transparan. Urutan gambarnya karena itu: foto dulu, template di atasnya —
-// spanduk kuning kiri-atas dan lengkung kuning kanan-bawah memang menimpa
-// foto di desain aslinya.
+// transparan. Urutan lapisannya:
+//   1. latar.webp — pemandangan contoh (langit, awan, bukit) dari template
+//   2. orangnya saja, latar pas fotonya dibuang (lihat hapusLatar.js)
+//   3. template — spanduk kuning kiri-atas dan lengkung kuning kanan-bawah
+//      memang menimpa foto di desain aslinya
+//   4. nama & kontingen
 //
 // Semua ukuran di bawah dalam piksel template asli (591 x 1004); kanvas
 // digambar SKALA kali lebih besar supaya teks dan foto tajam saat dicetak.
 
+import { hapusLatar } from "@/lib/hapusLatar";
+
 const TEMPLATE_URL = "/idcard/template.webp";
+const LATAR_URL = "/idcard/latar.webp";
 const LEBAR = 591;
 const TINGGI = 1004;
 const SKALA = 2;
@@ -24,20 +30,20 @@ const NAMA = { cx: 299, cy: 843, cyDuaBaris: 859, maxW: 460, ukuran: 28, minimal
 const KONTINGEN = { cx: 306, cy: 941, cyDuaBaris: 941, maxW: 360, ukuran: 26, minimal: 15, warna: "#67181c" };
 const HURUF = "Outfit, 'IBM Plex Sans', system-ui, sans-serif";
 
-let templateDimuat = null;
-const muatTemplate = () => {
-  if (!templateDimuat) {
-    templateDimuat = new Promise((resolve, reject) => {
+const dimuat = {};
+const muatGambar = (url) => {
+  if (!dimuat[url]) {
+    dimuat[url] = new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error("Template ID card gagal dimuat"));
-      img.src = TEMPLATE_URL;
+      img.src = url;
     }).catch((e) => {
-      templateDimuat = null; // boleh dicoba lagi
+      delete dimuat[url]; // boleh dicoba lagi
       throw e;
     });
   }
-  return templateDimuat;
+  return dimuat[url];
 };
 
 const font = (ukuran) => `700 ${ukuran * SKALA}px ${HURUF}`;
@@ -88,10 +94,11 @@ const tulis = (ctx, teks, kotak) => {
   }
 };
 
+// `foto` berupa Blob (pas foto asli) atau kanvas (orang tanpa latar).
 const gambarFoto = async (ctx, foto) => {
-  const bitmap = await createImageBitmap(foto).catch(() => {
-    throw new Error("Pas foto tidak bisa dibaca sebagai gambar");
-  });
+  const bitmap = foto instanceof Blob
+    ? await createImageBitmap(foto).catch(() => { throw new Error("Pas foto tidak bisa dibaca sebagai gambar"); })
+    : foto;
   const kotak = { x: FOTO.x * SKALA, y: FOTO.y * SKALA, w: FOTO.w * SKALA, h: FOTO.h * SKALA };
   // object-fit: cover
   const skala = Math.max(kotak.w / bitmap.width, kotak.h / bitmap.height);
@@ -105,18 +112,29 @@ const gambarFoto = async (ctx, foto) => {
   ctx.clip();
   ctx.drawImage(bitmap, x, y, w, h);
   ctx.restore();
-  bitmap.close?.();
+  if (bitmap !== foto) bitmap.close?.();
 };
 
 /**
  * Gambar satu ID card.
  * @param {{nama: string, kontingen: string, foto: Blob}} peserta
- * @returns {Promise<Blob>} JPEG siap unduh/cetak (1182 x 2008 px)
+ * @returns {Promise<{blob: Blob, latarDihapus: boolean}>} JPEG siap
+ *   unduh/cetak (1182 x 2008 px). Bila latar foto gagal dibuang (mis. model
+ *   tidak bisa diunduh), kartu tetap dibuat dengan foto aslinya.
  */
 export async function buatIdCard({ nama, kontingen, foto }) {
   if (!foto) throw new Error("Pas foto belum ada");
-  const [template] = await Promise.all([
-    muatTemplate(),
+  let orang = foto;
+  let latarDihapus = false;
+  try {
+    orang = await hapusLatar(foto);
+    latarDihapus = true;
+  } catch (e) {
+    console.warn("Latar foto gagal dibuang, memakai foto asli:", e);
+  }
+  const [template, latar] = await Promise.all([
+    muatGambar(TEMPLATE_URL),
+    muatGambar(LATAR_URL),
     // Huruf Outfit dimuat malas oleh halaman; tanpa menunggu, kanvas memakai
     // huruf cadangan. Kalau gagal dimuat, tetap lanjut dengan huruf cadangan.
     document.fonts?.load(font(NAMA.ukuran)).catch(() => {}),
@@ -128,12 +146,14 @@ export async function buatIdCard({ nama, kontingen, foto }) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, kanvas.width, kanvas.height);
   ctx.imageSmoothingQuality = "high";
-  await gambarFoto(ctx, foto);
+  ctx.drawImage(latar, 0, 0, kanvas.width, kanvas.height);
+  await gambarFoto(ctx, orang);
   ctx.drawImage(template, 0, 0, kanvas.width, kanvas.height);
   tulis(ctx, nama, NAMA);
   tulis(ctx, kontingen, KONTINGEN);
-  return new Promise((resolve, reject) =>
+  const blob = await new Promise((resolve, reject) =>
     kanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Gagal membuat gambar ID card"))), "image/jpeg", 0.92));
+  return { blob, latarDihapus };
 }
 
 export const namaBerkasIdCard = (regNumber, nama) =>
