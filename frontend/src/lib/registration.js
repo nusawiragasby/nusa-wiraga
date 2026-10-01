@@ -5,13 +5,21 @@
 // Kategori yang dipertandingkan. Dipakai formulir pendaftaran, penyaring
 // dasbor, pengelola bagan, dan pengelola hasil — dulu keempatnya menyimpan
 // salinannya sendiri.
+// Seni tunggal dan ganda dibagi lagi menjadi kelas kosongan (tangan kosong)
+// dan senjata. Akhiran itu aman: memberCount/minMemberCount di bawah, dan
+// kembarannya di server.py, mencocokkan kata "Ganda"/"Berkelompok" sebagai
+// bagian dari nama, bukan nama utuh.
 export const CATEGORIES = [
   "Tanding Putra",
   "Tanding Putri",
-  "Seni Tunggal Putra",
-  "Seni Tunggal Putri",
-  "Seni Ganda Putra",
-  "Seni Ganda Putri",
+  "Seni Tunggal Putra Kosongan",
+  "Seni Tunggal Putra Senjata",
+  "Seni Tunggal Putri Kosongan",
+  "Seni Tunggal Putri Senjata",
+  "Seni Ganda Putra Kosongan",
+  "Seni Ganda Putra Senjata",
+  "Seni Ganda Putri Kosongan",
+  "Seni Ganda Putri Senjata",
   "Berkelompok (Jurus Baku)",
 ];
 

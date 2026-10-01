@@ -4,8 +4,8 @@ import { Swords, User, Users, Banknote } from "lucide-react";
 
 const KARTU_KATEGORI = [
   { icon: Swords, name: "Tanding Putra / Putri", desc: "Kelas Under 1 sampai M, menyesuaikan kelompok usia.", fee: "Rp 160.000 / atlet" },
-  { icon: User, name: "Seni Tunggal", desc: "Jurus wajib tunggal putra & putri dengan senjata.", fee: "Rp 160.000 / atlet" },
-  { icon: Users, name: "Seni Ganda Putra / Putri", desc: "Koreografi jurus berpasangan dengan serang bela.", fee: "Rp 160.000 / pasangan" },
+  { icon: User, name: "Seni Tunggal Putra / Putri", desc: "Jurus wajib tunggal, kelas kosongan dan senjata.", fee: "Rp 160.000 / atlet" },
+  { icon: Users, name: "Seni Ganda Putra / Putri", desc: "Berpasangan serang bela, kelas kosongan dan senjata.", fee: "Rp 160.000 / pasangan" },
   { icon: Users, name: "Seni Berkelompok (Jurus Baku)", desc: "Kekompakan regu dalam jurus baku.", fee: "Rp 160.000 / regu" },
 ];
 
