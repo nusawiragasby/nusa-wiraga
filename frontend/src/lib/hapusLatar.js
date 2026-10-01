@@ -32,7 +32,9 @@ export const siapkanHapusLatar = () => { muat().catch(() => {}); };
 
 /**
  * @param {Blob} foto pas foto
- * @returns {Promise<HTMLCanvasElement>} foto dengan latar transparan
+ * @returns {Promise<{kanvas: HTMLCanvasElement, porsiOrang: number}>} foto
+ *   dengan latar transparan, dan bagian gambar (0-1) yang dikenali sebagai
+ *   orang — mendekati 0 berarti tidak ada orang di foto itu.
  */
 export async function hapusLatar(foto) {
   const { t, model, processor } = await muat();
@@ -51,7 +53,11 @@ export async function hapusLatar(foto) {
   bitmap.close?.();
   const piksel = ctx.getImageData(0, 0, gambar.width, gambar.height);
   // Matte satu kanal (0 = latar, 255 = orang) jadi kanal alfa.
-  for (let i = 0; i < matte.data.length; i++) piksel.data[i * 4 + 3] = matte.data[i];
+  let orang = 0;
+  for (let i = 0; i < matte.data.length; i++) {
+    piksel.data[i * 4 + 3] = matte.data[i];
+    if (matte.data[i] > 128) orang++;
+  }
   ctx.putImageData(piksel, 0, 0);
-  return kanvas;
+  return { kanvas, porsiOrang: orang / matte.data.length };
 }

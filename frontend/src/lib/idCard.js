@@ -30,6 +30,11 @@ const FOTO_TITIK_TENGAH_Y = 0.3;
 // potongannya dilembutkan selebar ini supaya tidak tampak garis lurus di
 // atas latar merah.
 const LEMBUT = 0.05;
+// Pas foto wajar berisi orang di sepertiga sampai separuh gambarnya. Di bawah
+// ambang ini hampir pasti yang diunggah bukan foto orang (pernah terjadi:
+// foto formulir di kolom Pas Foto) — memotong latarnya justru mengosongkan
+// kartu, jadi fotonya dipakai apa adanya dan admin diberi tahu.
+const AMBANG_ORANG = 0.08;
 
 const NAMA = { cx: 298, cy: 797, maxW: 470, ukuran: 30, minimal: 23, warna: "#ffffff" };
 const KELAS = { cx: 300, cy: 894, maxW: 420, ukuran: 28, minimal: 19, warna: "#840e00" };
@@ -174,17 +179,23 @@ export const kelasAtauKategori = (reg) =>
 /**
  * Gambar satu ID card.
  * @param {{nama: string, kelas: string, kontingen: string, foto: Blob}} peserta
- * @returns {Promise<{blob: Blob, latarDihapus: boolean}>} JPEG siap
- *   unduh/cetak (1182 x 2008 px). Bila latar foto gagal dibuang (mis. model
- *   tidak bisa diunduh), kartu tetap dibuat dengan foto aslinya.
+ * @returns {Promise<{blob: Blob, latarDihapus: boolean, bukanFotoOrang: boolean}>}
+ *   JPEG siap unduh/cetak (1182 x 2008 px). Bila latar foto gagal dibuang
+ *   (mis. model tidak bisa diunduh) atau fotonya tidak berisi orang, kartu
+ *   tetap dibuat dengan foto aslinya.
  */
 export async function buatIdCard({ nama, kelas, kontingen, foto }) {
   if (!foto) throw new Error("Pas foto belum ada");
   let orang = foto;
   let latarDihapus = false;
+  let bukanFotoOrang = false;
   try {
-    orang = await hapusLatar(foto);
-    latarDihapus = true;
+    const { kanvas, porsiOrang } = await hapusLatar(foto);
+    if (porsiOrang < AMBANG_ORANG) bukanFotoOrang = true;
+    else {
+      orang = kanvas;
+      latarDihapus = true;
+    }
   } catch (e) {
     console.warn("Latar foto gagal dibuang, memakai foto asli:", e);
   }
@@ -201,7 +212,7 @@ export async function buatIdCard({ nama, kelas, kontingen, foto }) {
   tulis(ctx, kontingen, KONTINGEN);
   const blob = await new Promise((resolve, reject) =>
     kanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Gagal membuat gambar ID card"))), "image/jpeg", 0.92));
-  return { blob, latarDihapus };
+  return { blob, latarDihapus, bukanFotoOrang };
 }
 
 export const namaBerkasIdCard = (regNumber, nama) =>

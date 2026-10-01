@@ -15,7 +15,7 @@ import { siapkanHapusLatar } from "@/lib/hapusLatar";
  */
 export function IdCardPanel({ peserta, kelas, kontingen, regNumber, testId = "idcard-panel" }) {
   const [sibuk, setSibuk] = useState(null);
-  const [pratinjau, setPratinjau] = useState(null); // { nama, blob, url, latarDihapus }
+  const [pratinjau, setPratinjau] = useState(null); // { nama, blob, url, latarDihapus, bukanFotoOrang }
 
   // Model pembuang latar ~25 MB; unduhannya dimulai begitu tombol tampil,
   // supaya klik pertama tidak menunggu selama itu.
@@ -28,8 +28,8 @@ export function IdCardPanel({ peserta, kelas, kontingen, regNumber, testId = "id
     setSibuk(i);
     try {
       const foto = await peserta[i].ambilFoto();
-      const { blob, latarDihapus } = await buatIdCard({ nama: peserta[i].nama, kelas, kontingen, foto });
-      setPratinjau({ nama: peserta[i].nama, blob, url: URL.createObjectURL(blob), latarDihapus });
+      const { blob, latarDihapus, bukanFotoOrang } = await buatIdCard({ nama: peserta[i].nama, kelas, kontingen, foto });
+      setPratinjau({ nama: peserta[i].nama, blob, url: URL.createObjectURL(blob), latarDihapus, bukanFotoOrang });
     } catch (e) {
       toast.error(`ID card ${peserta[i].nama}: ${e.message}`);
     } finally {
@@ -58,7 +58,12 @@ export function IdCardPanel({ peserta, kelas, kontingen, regNumber, testId = "id
           </DialogHeader>
           {pratinjau && (
             <>
-              {!pratinjau.latarDihapus && (
+              {pratinjau.bukanFotoOrang ? (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300" data-testid={`${testId}-bukan-orang`}>
+                  Tidak ada orang yang terdeteksi di Pas Foto — kemungkinan yang diunggah bukan pas foto
+                  (mis. foto dokumen). Minta pas foto yang benar, lalu ganti lewat tombol unggah di kolom Pas Foto.
+                </p>
+              ) : !pratinjau.latarDihapus && (
                 <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300">
                   Latar foto gagal dihapus, ID card memakai foto asli. Coba tutup lalu buka lagi setelah koneksi stabil.
                 </p>
