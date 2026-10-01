@@ -182,6 +182,27 @@ class RegisterInput(BaseModel):
 class RegistrantUpdate(BaseModel):
     status: Optional[str] = None
     payment_status: Optional[str] = None
+    # Data peserta yang boleh disunting admin. Field yang tidak dikirim
+    # dibiarkan apa adanya.
+    full_name: Optional[str] = None
+    contingent_school: Optional[str] = None
+    category: Optional[str] = None
+    age_class: Optional[str] = None
+    weight_class: Optional[str] = None
+    height_cm: Optional[float] = None
+    official_coach: Optional[str] = None
+    member_names: Optional[List[str]] = None
+
+    @field_validator("height_cm", mode="before")
+    @classmethod
+    def _kosong_berarti_tidak_diisi(cls, v):
+        return None if isinstance(v, str) and not v.strip() else v
+
+
+# Field data peserta di RegistrantUpdate; mengubah salah satunya berarti
+# kolom A-J di Sheets juga harus ditulis ulang.
+FIELD_DATA_PESERTA = ("full_name", "contingent_school", "category", "age_class",
+                      "weight_class", "height_cm", "official_coach", "member_names")
 
 
 class NewsInput(BaseModel):
@@ -352,23 +373,48 @@ async def next_reg_number() -> str:
     return f"NW26-{(max(nums) + 1) if nums else 1:04d}"
 
 
+def rapikan_data_peserta(data: dict) -> dict:
+    """Terapkan aturan isian pendaftaran pada `data`, ditolak 422 bila tak sah.
+
+    Dipakai formulir pendaftaran dan suntingan admin supaya keduanya tidak
+    bisa menyimpan data dengan aturan berbeda. Kelas & tinggi badan dibuang di
+    kategori non-Tanding, dan daftar anggota dibuang di kategori perorangan,
+    supaya sisa isian kategori lama tidak ikut tersimpan.
+    """
+    for field, label in (("full_name", "Nama peserta"), ("contingent_school", "Perguruan"),
+                         ("category", "Kategori"), ("age_class", "Kelompok usia")):
+        if not (data.get(field) or "").strip():
+            raise HTTPException(status_code=422, detail=f"{label} wajib diisi")
+        data[field] = data[field].strip()
+    category = data["category"]
+    if "Tanding" in category:
+        if not data.get("weight_class"):
+            raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
+        if not data.get("height_cm"):
+            raise HTTPException(status_code=422, detail="Tinggi badan wajib diisi untuk kategori Tanding")
+    else:
+        data["weight_class"] = None
+        data["height_cm"] = None
+    maks_anggota = member_count(category)
+    if maks_anggota:
+        names = [n.strip() for n in (data.get("member_names") or []) if n and n.strip()]
+        minimal = min_member_count(category)
+        if not minimal <= len(names) <= maks_anggota:
+            detail = (f"Kategori {category} wajib diisi tepat {maks_anggota} nama anggota"
+                      if minimal == maks_anggota
+                      else f"Kategori {category} wajib diisi {minimal} sampai {maks_anggota} nama anggota")
+            raise HTTPException(status_code=422, detail=detail)
+        data["member_names"] = names
+        data["full_name"] = names[0]  # anggota pertama mewakili regu/pasangan
+    else:
+        data["member_names"] = None
+    return data
+
+
 @api_router.post("/register")
 async def register(body: RegisterInput):
-    if "Tanding" in body.category:
-        if not body.weight_class:
-            raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
-        if not body.height_cm:
-            raise HTTPException(status_code=422, detail="Tinggi badan wajib diisi untuk kategori Tanding")
-    maks_anggota = member_count(body.category)
-    if maks_anggota:
-        names = [n.strip() for n in (body.member_names or []) if n and n.strip()]
-        minimal = min_member_count(body.category)
-        if not minimal <= len(names) <= maks_anggota:
-            detail = (f"Kategori {body.category} wajib diisi tepat {maks_anggota} nama anggota"
-                      if minimal == maks_anggota
-                      else f"Kategori {body.category} wajib diisi {minimal} sampai {maks_anggota} nama anggota")
-            raise HTTPException(status_code=422, detail=detail)
-        body.member_names = names
+    for field, value in rapikan_data_peserta(body.model_dump()).items():
+        setattr(body, field, value)
     reg_id = str(uuid.uuid4())
     doc = body.model_dump()
     draft_token = doc.pop("draft_token", None)
@@ -482,6 +528,19 @@ async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = De
         if body.payment_status not in PAYMENT_VALUES:
             raise HTTPException(status_code=422, detail="Status pembayaran tidak valid")
         update["payment_status"] = body.payment_status
+    dikirim = body.model_dump(exclude_unset=True)
+    if any(f in dikirim for f in FIELD_DATA_PESERTA):
+        lama = await db.registrants.find_one({"id": reg_id}, {"_id": 0})
+        if not lama:
+            raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
+        data = {f: lama.get(f) for f in FIELD_DATA_PESERTA}
+        data.update({f: dikirim[f] for f in FIELD_DATA_PESERTA if f in dikirim})
+        update.update(rapikan_data_peserta(data))
+        update["updated_at"] = datetime.now(timezone.utc).isoformat()
+        # Kolom A-J biasanya dibiarkan agar koreksi manual di Sheets aman;
+        # suntingan admin justru harus menimpanya. Penanda ini disimpan supaya
+        # penyelaras berkala tetap menulis penuh bila sinkron langsung terputus.
+        update["sheet_tulis_penuh"] = True
     if not update:
         raise HTTPException(status_code=422, detail="Tidak ada perubahan")
     update["sheet_synced"] = False  # dipulihkan penyelaras kalau sinkron gagal
@@ -890,7 +949,8 @@ async def update_sheet_row_safe(doc: dict):
 
 async def mark_sheet_synced(doc: dict):
     if doc.get("id"):
-        await db.registrants.update_one({"id": doc["id"]}, {"$set": {"sheet_synced": True}})
+        await db.registrants.update_one(
+            {"id": doc["id"]}, {"$set": {"sheet_synced": True}, "$unset": {"sheet_tulis_penuh": ""}})
 
 
 @api_router.get("/admin/files/{reg_id}/{kind}")
@@ -1310,8 +1370,14 @@ def names_cell(doc: dict) -> str:
 def build_sheet_row(doc: dict) -> list:
     reg_id = doc.get("id", "")
     names = member_names_of(doc)
+    # Berkas anggota yang sudah dikeluarkan admin tetap tersimpan (kalau
+    # suntingannya dibatalkan, berkasnya muncul lagi), tetapi tidak ditautkan.
+    sets = max(len(doc.get("member_names") or []), 1)
     blok = []
     for i in range(MAX_MEMBERS):
+        if i >= sets:
+            blok += [names[i] if i < len(names) else "", "", "", ""]
+            continue
         blok += [
             names[i] if i < len(names) else "",
             file_link_formula(reg_id, doc, kind_for("data_diri", i), "Lihat KTP/NISN"),
@@ -1509,15 +1575,19 @@ async def update_sheet_row(doc: dict):
             logger.info(f"[SHEETS] Baris {doc['reg_number']} tidak ditemukan, ditambahkan sebagai baris baru")
             _upsert_row(service, sheet_id, title, gid, build_sheet_row(doc), doc["reg_number"])
             return
-        # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
-        # (dipanggil baik saat admin ubah status maupun saat berkas baru diunggah).
-        # Kolom A-J tidak disentuh supaya koreksi manual panitia tidak hilang.
         row = build_sheet_row(doc)
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id, range=f"'{title}'!K{baris[0]}:{SHEET_LAST_COL}{baris[0]}",
-            valueInputOption="USER_ENTERED",
-            body={"values": [row[10:]]},
-        ).execute()
+        if doc.get("sheet_tulis_penuh"):
+            # Admin menyunting data peserta: seluruh baris ditimpa.
+            _write_sheet_row(service, sheet_id, title, row, baris[0])
+        else:
+            # Perbarui status, pembayaran, tinggi badan, dan link berkas sekaligus
+            # (dipanggil saat admin ubah status maupun saat berkas baru diunggah).
+            # Kolom A-J tidak disentuh supaya koreksi manual panitia tidak hilang.
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id, range=f"'{title}'!K{baris[0]}:{SHEET_LAST_COL}{baris[0]}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [row[10:]]},
+            ).execute()
         if len(baris) > 1:
             _hapus_baris(service, sheet_id, gid, baris[1:])
             logger.info(f"[SHEETS] {len(baris) - 1} baris kembar {doc['reg_number']} dibuang")

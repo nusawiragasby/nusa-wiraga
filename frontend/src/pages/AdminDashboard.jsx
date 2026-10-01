@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Users, CheckCircle2, Clock, Wallet, Download, LogOut, Search, Trash2, MessageCircle, Loader2, Sheet, FileText, HeartPulse, Image as ImageIcon, FolderOpen } from "lucide-react";
+import { Users, CheckCircle2, Clock, Wallet, Download, LogOut, Search, Trash2, MessageCircle, Loader2, Sheet, FileText, HeartPulse, Image as ImageIcon, FolderOpen, Pencil, Upload } from "lucide-react";
 import Seo from "@/components/Seo";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { BracketManager } from "@/components/admin/BracketManager";
+import { EditRegistrantDialog } from "@/components/admin/EditRegistrantDialog";
+import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
 import { CATEGORIES, FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
 
@@ -79,6 +81,9 @@ export default function AdminDashboard() {
   // Kategori beregu bisa punya 15 berkas; daftarnya dibuka di dialog, bukan
   // dijejalkan sebagai ikon di sel aksi tabel.
   const [filesOf, setFilesOf] = useState(null);
+  const [editOf, setEditOf] = useState(null);
+  // Kind berkas yang sedang diunggah admin dari dialog Berkas.
+  const [mengunggah, setMengunggah] = useState(null);
   const firstLoad = useRef(true);
 
   useEffect(() => {
@@ -118,6 +123,34 @@ export default function AdminDashboard() {
       load();
     } catch (err) {
       toast.error(formatApiError(err));
+    }
+  };
+
+  // Admin mengganti atau melengkapi berkas pendaftar, misalnya setelah
+  // anggota regu ditambah lewat Edit. Endpoint-nya sama dengan formulir
+  // pendaftaran; di luar jendela unggah, backend memeriksa token admin.
+  const uploadFile = async (reg, base, kind, e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setMengunggah(kind);
+    try {
+      const compressed = await compressImage(f, base === "foto" ? MAX_DIMENSION_PHOTO : MAX_DIMENSION_DOC);
+      if (compressed.size > 5 * 1024 * 1024) {
+        toast.error("Ukuran file maksimal 5 MB");
+        return;
+      }
+      const fd = new FormData();
+      fd.append(kind, compressed);
+      await api.post(`/register/${reg.id}/files`, fd);
+      toast.success("Berkas terunggah");
+      setFilesOf((prev) => (prev?.id === reg.id
+        ? { ...prev, files: { ...prev.files, [kind]: { filename: compressed.name } } } : prev));
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setMengunggah(null);
     }
   };
 
@@ -350,6 +383,11 @@ export default function AdminDashboard() {
                           <MessageCircle className="h-4 w-4" />
                         </a>
                       )}
+                      <button type="button" onClick={() => setEditOf(r)} data-testid={`admin-edit-btn-${r.reg_number}`}
+                        aria-label="Edit pendaftar" title="Edit data"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-slate-200 hover:bg-[#1C1C24]">
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       <button onClick={() => remove(r.id, r.full_name)} data-testid={`admin-delete-btn-${r.reg_number}`} aria-label="Hapus pendaftar"
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2E2E3A] text-red-400 hover:bg-[#1C1C24]">
                         <Trash2 className="h-4 w-4" />
@@ -391,16 +429,27 @@ export default function AdminDashboard() {
                       const ada = !!filesOf.files?.[kind];
                       const Icon = KIND_ICON[b.base];
                       return (
-                        <button key={kind} type="button" disabled={!ada}
-                          onClick={() => openFile(filesOf.id, kind)}
-                          data-testid={`admin-file-${kind.replace(/_/g, "")}-${filesOf.reg_number}`}
-                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
-                            ada ? "border-[#2E2E3A] text-slate-200 hover:bg-[#1C1C24]"
-                                : "border-dashed border-[#2E2E3A] text-slate-600"}`}>
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{b.label}</span>
-                          {!ada && <span className="ml-auto shrink-0 text-[10px] font-normal">kosong</span>}
-                        </button>
+                        <div key={kind} className={`flex items-stretch overflow-hidden rounded-lg border ${
+                          ada ? "border-[#2E2E3A]" : "border-dashed border-[#2E2E3A]"}`}>
+                          <button type="button" disabled={!ada}
+                            onClick={() => openFile(filesOf.id, kind)}
+                            data-testid={`admin-file-${kind.replace(/_/g, "")}-${filesOf.reg_number}`}
+                            className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-xs font-semibold ${
+                              ada ? "text-slate-200 hover:bg-[#1C1C24]" : "text-slate-600"}`}>
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{b.label}</span>
+                            {!ada && <span className="ml-auto shrink-0 text-[10px] font-normal">kosong</span>}
+                          </button>
+                          <label title={ada ? `Ganti ${b.label}` : `Unggah ${b.label}`}
+                            data-testid={`admin-upload-${kind.replace(/_/g, "")}-${filesOf.reg_number}`}
+                            className={`flex w-9 shrink-0 cursor-pointer items-center justify-center border-l border-[#2E2E3A] hover:bg-[#1C1C24] ${
+                              ada ? "text-slate-400" : "text-amber-400"} ${mengunggah ? "pointer-events-none opacity-50" : ""}`}>
+                            {mengunggah === kind ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            <input type="file" accept={b.accept} className="sr-only" disabled={!!mengunggah}
+                              aria-label={ada ? `Ganti ${b.label}` : `Unggah ${b.label}`}
+                              onChange={(e) => uploadFile(filesOf, b.base, kind, e)} />
+                          </label>
+                        </div>
                       );
                     })}
                   </div>
@@ -410,6 +459,9 @@ export default function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditRegistrantDialog registrant={editOf} onClose={() => setEditOf(null)}
+        onSaved={() => { setEditOf(null); load(); }} />
     </div>
   );
 }
