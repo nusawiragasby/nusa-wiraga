@@ -373,6 +373,11 @@ async def next_reg_number() -> str:
     return f"NW26-{(max(nums) + 1) if nums else 1:04d}"
 
 
+# Kelas kategori Berkelompok (Jurus Baku), disimpan di weight_class seperti
+# kelas tanding. Kembarannya: KELAS_BERKELOMPOK di frontend/src/lib/registration.js.
+KELAS_BERKELOMPOK = ("Wudhu", "SD", "SMP")
+
+
 def rapikan_data_peserta(data: dict) -> dict:
     """Terapkan aturan isian pendaftaran pada `data`, ditolak 422 bila tak sah.
 
@@ -392,6 +397,11 @@ def rapikan_data_peserta(data: dict) -> dict:
             raise HTTPException(status_code=422, detail="Kelas tanding wajib dipilih untuk kategori Tanding")
         if not data.get("height_cm"):
             raise HTTPException(status_code=422, detail="Tinggi badan wajib diisi untuk kategori Tanding")
+    elif "Berkelompok" in category:
+        if data.get("weight_class") not in KELAS_BERKELOMPOK:
+            raise HTTPException(status_code=422,
+                                detail=f"Kelas jurus baku wajib dipilih ({', '.join(KELAS_BERKELOMPOK)})")
+        data["height_cm"] = None
     else:
         data["weight_class"] = None
         data["height_cm"] = None

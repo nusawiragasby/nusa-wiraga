@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, formatApiError } from "@/lib/api";
 import { generateMatches, propagate, roundsOf, roundLabel, derivedSlots } from "@/lib/bracket";
-import { AGE_CLASSES, ALL_WEIGHT_CLASSES, CATEGORIES, weightClassesFor } from "@/lib/registration";
+import { AGE_CLASSES, ALL_WEIGHT_CLASSES, CATEGORIES, KELAS_BERKELOMPOK, kelasUntuk } from "@/lib/registration";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-100 focus-visible:ring-amber-500";
 const selCls = "h-8 w-full rounded-md border border-[#2E2E3A] bg-[#0B0B0E] px-2 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-amber-500";
@@ -69,12 +69,15 @@ const MatchEditor = ({ m, p1Editable, p2Editable, options, onChange }) => (
 
 // Baris filter + tombol ambil dari pendaftar (dipakai bracket & list).
 const AutofillBar = ({ fCat, setFCat, fAge, setFAge, fWeight, setFWeight, count, onFill, label }) => {
-  const showWeight = fCat === "" || fCat.includes("Tanding");
+  const showWeight = fCat === "" || fCat.includes("Tanding") || fCat.includes("Berkelompok");
+  // Tanpa kategori terpilih, semua kelas (tanding dan jurus baku) bisa dipakai.
+  const opsiKelas = fCat ? kelasUntuk(fCat, fAge) : fAge ? kelasUntuk("Tanding", fAge).concat(KELAS_BERKELOMPOK)
+    : [...ALL_WEIGHT_CLASSES, ...KELAS_BERKELOMPOK];
   return (
     <div className="mb-4 rounded-xl border border-amber-500/20 bg-[#13131A] p-3" data-testid="bracket-autofill">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-300"><Users className="h-3.5 w-3.5" /> Ambil dari pendaftar terverifikasi</p>
       <div className="flex flex-wrap items-center gap-2">
-        <select value={fCat} onChange={(e) => setFCat(e.target.value)} className={`${selCls} w-auto`} data-testid="autofill-cat">
+        <select value={fCat} onChange={(e) => { setFCat(e.target.value); setFWeight(""); }} className={`${selCls} w-auto`} data-testid="autofill-cat">
           <option value="">Semua Kategori</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -89,7 +92,7 @@ const AutofillBar = ({ fCat, setFCat, fAge, setFAge, fWeight, setFWeight, count,
         {showWeight && (
           <select value={fWeight} onChange={(e) => setFWeight(e.target.value)} className={`${selCls} w-auto`} data-testid="autofill-weight">
             <option value="">Semua Kelas</option>
-            {(fAge ? weightClassesFor(fAge) : ALL_WEIGHT_CLASSES).map((c) => <option key={c} value={c}>{c}</option>)}
+            {opsiKelas.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
         <Button type="button" onClick={onFill} disabled={count === 0} data-testid="autofill-btn"

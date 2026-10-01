@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, formatApiError } from "@/lib/api";
-import { AGE_CLASSES, CATEGORIES, MAX_MEMBERS, memberCount, minMemberCount, weightClassesFor } from "@/lib/registration";
+import { AGE_CLASSES, CATEGORIES, MAX_MEMBERS, butuhKelas, kelasUntuk, memberCount, minMemberCount } from "@/lib/registration";
 
 const inputCls = "border-[#2E2E3A] bg-[#0B0B0E] text-slate-50";
 const menuCls = "border-[#2E2E3A] bg-[#1C1C24] text-slate-100";
@@ -39,14 +39,16 @@ export function EditRegistrantDialog({ registrant, onClose, onSaved }) {
   if (!registrant || !form) return null;
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
+  // Kelas yang tidak berlaku untuk kategori/usia baru dikosongkan.
+  const pertahankanKelas = (f, category, ageClass) =>
+    (kelasUntuk(category, ageClass).includes(f.weight_class) ? f.weight_class : "");
+  const setCategory = (value) => setForm((f) => ({ ...f, category: value, weight_class: pertahankanKelas(f, value, f.age_class) }));
   const setNama = (i, value) => setForm((f) => ({ ...f, names: f.names.map((n, j) => (j === i ? value : n)) }));
-  const setAgeClass = (value) => setForm((f) => ({
-    ...f, age_class: value,
-    // Kelas berat bergantung pada kelompok usia; yang tidak berlaku dikosongkan.
-    weight_class: weightClassesFor(value).includes(f.weight_class) ? f.weight_class : "",
-  }));
+  const setAgeClass = (value) => setForm((f) => ({ ...f, age_class: value, weight_class: pertahankanKelas(f, f.category, value) }));
 
   const isTanding = form.category.includes("Tanding");
+  const pakaiKelas = butuhKelas(form.category);
+  const pilihanKelas = kelasUntuk(form.category, form.age_class);
   const groupSize = memberCount(form.category);
   const minAnggota = minMemberCount(form.category);
   const jumlahSlot = Math.max(groupSize, 1);
@@ -59,6 +61,7 @@ export function EditRegistrantDialog({ registrant, onClose, onSaved }) {
   const save = async (e) => {
     e.preventDefault();
     if (!namaTerisi.length) return toast.error("Nama peserta wajib diisi.");
+    if (pakaiKelas && !form.weight_class) return toast.error("Pilih kelas terlebih dahulu.");
     if (groupSize && adaLubang) return toast.error("Isi nama anggota berurutan dari atas — jangan ada yang dilewati.");
     if (groupSize && namaTerisi.length < minAnggota) {
       return toast.error(`Kategori ${form.category} wajib diisi minimal ${minAnggota} nama anggota.`);
@@ -70,7 +73,7 @@ export function EditRegistrantDialog({ registrant, onClose, onSaved }) {
         contingent_school: form.contingent_school,
         category: form.category,
         age_class: form.age_class,
-        weight_class: isTanding ? form.weight_class : "",
+        weight_class: pakaiKelas ? form.weight_class : "",
         height_cm: isTanding ? form.height_cm : "",
         official_coach: form.official_coach,
         member_names: groupSize ? namaTerisi : [],
@@ -97,7 +100,7 @@ export function EditRegistrantDialog({ registrant, onClose, onSaved }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Kategori</Label>
-              <Select value={form.category} onValueChange={set("category")}>
+              <Select value={form.category} onValueChange={setCategory}>
                 <SelectTrigger className={inputCls} data-testid="edit-category-select"><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                 <SelectContent className={menuCls}>
                   {denganNilaiLama(CATEGORIES, registrant.category).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -115,24 +118,26 @@ export function EditRegistrantDialog({ registrant, onClose, onSaved }) {
             </div>
           </div>
 
-          {isTanding && (
+          {pakaiKelas && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Kelas Tanding</Label>
-                <Select value={form.weight_class} onValueChange={set("weight_class")} disabled={!form.age_class}>
+                <Label>{isTanding ? "Kelas Tanding" : "Kelas Jurus Baku"}</Label>
+                <Select value={form.weight_class} onValueChange={set("weight_class")} disabled={!pilihanKelas.length}>
                   <SelectTrigger className={inputCls} data-testid="edit-weight-select">
-                    <SelectValue placeholder={form.age_class ? "Pilih kelas" : "Pilih kelompok usia dulu"} />
+                    <SelectValue placeholder={pilihanKelas.length ? "Pilih kelas" : "Pilih kelompok usia dulu"} />
                   </SelectTrigger>
                   <SelectContent className={menuCls}>
-                    {weightClassesFor(form.age_class).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {pilihanKelas.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-height">Tinggi Badan (cm)</Label>
-                <Input id="edit-height" type="number" min="80" max="220" required className={inputCls}
-                  data-testid="edit-height-input" value={form.height_cm} onChange={(e) => set("height_cm")(e.target.value)} />
-              </div>
+              {isTanding && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-height">Tinggi Badan (cm)</Label>
+                  <Input id="edit-height" type="number" min="80" max="220" required className={inputCls}
+                    data-testid="edit-height-input" value={form.height_cm} onChange={(e) => set("height_cm")(e.target.value)} />
+                </div>
+              )}
             </div>
           )}
 

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { AGE_CLASSES, CATEGORIES, fileKindsForCount, memberCount, memberLabel, minMemberCount, weightClassesFor } from "@/lib/registration";
+import { AGE_CLASSES, CATEGORIES, butuhKelas, fileKindsForCount, kelasUntuk, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 
@@ -94,8 +94,15 @@ export default function RegisterPage() {
   // Kelas tanding berbeda per kelompok usia, jadi pilihan lama dikosongkan
   // saat kelompoknya diganti — kalau tidak, kelas milik kelompok lain bisa
   // ikut terkirim.
-  const setAgeClass = (v) => setForm((f) => ({ ...f, age_class: v, weight_class: "" }));
-  const kelasBerat = weightClassesFor(form.age_class);
+  // Kelas yang tidak berlaku lagi untuk kategori/usia baru dikosongkan.
+  // Kelas Berkelompok tidak bergantung usia, jadi tetap terpilih saat usia
+  // diganti; kelas tanding hampir selalu ikut kosong.
+  const pertahankanKelas = (f, category, ageClass) =>
+    (kelasUntuk(category, ageClass).includes(f.weight_class) ? f.weight_class : "");
+  const setCategory = (v) => setForm((f) => ({ ...f, category: v, weight_class: pertahankanKelas(f, v, f.age_class) }));
+  const setAgeClass = (v) => setForm((f) => ({ ...f, age_class: v, weight_class: pertahankanKelas(f, f.category, v) }));
+  const pakaiKelas = butuhKelas(form.category);
+  const pilihanKelas = kelasUntuk(form.category, form.age_class);
   const setMember = (i) => (e) => setMembers(members.map((m, j) => (j === i ? e.target.value : m)));
 
   const ensureDraftToken = async () => {
@@ -134,6 +141,12 @@ export default function RegisterPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    // Dropdown Radix tidak ikut validasi bawaan formulir, jadi kelas yang
+    // belum dipilih dicegat di sini, bukan baru ditolak server.
+    if (pakaiKelas && !form.weight_class) {
+      toast.error(isTanding ? "Pilih kelas tanding terlebih dahulu." : "Pilih kelas jurus baku (Wudhu, SD, atau SMP).");
+      return;
+    }
     if (isGroup && adaLubang) {
       toast.error("Isi nama anggota berurutan dari atas — jangan ada yang dilewati.");
       return;
@@ -246,7 +259,7 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label>Kategori Tanding / Seni</Label>
-                <Select required value={form.category} onValueChange={set("category")}>
+                <Select required value={form.category} onValueChange={setCategory}>
                   <SelectTrigger data-testid="reg-category-select" className={inputCls}><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                   <SelectContent className="border-[#2E2E3A] bg-[#1C1C24] text-slate-100">
                     {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -262,15 +275,15 @@ export default function RegisterPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {isTanding && (
+              {pakaiKelas && (
                 <div className="space-y-2">
-                  <Label>Kelas Tanding (Berat Badan)</Label>
-                  <Select value={form.weight_class} onValueChange={set("weight_class")} disabled={kelasBerat.length === 0}>
+                  <Label>{isTanding ? "Kelas Tanding (Berat Badan)" : "Kelas Jurus Baku"}</Label>
+                  <Select value={form.weight_class} onValueChange={set("weight_class")} disabled={pilihanKelas.length === 0}>
                     <SelectTrigger data-testid="reg-weight-select" className={inputCls}>
-                      <SelectValue placeholder={kelasBerat.length ? "Pilih kelas" : "Pilih kelompok usia dulu"} />
+                      <SelectValue placeholder={pilihanKelas.length ? "Pilih kelas" : "Pilih kelompok usia dulu"} />
                     </SelectTrigger>
                     <SelectContent className="border-[#2E2E3A] bg-[#1C1C24] text-slate-100">
-                      {kelasBerat.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {pilihanKelas.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

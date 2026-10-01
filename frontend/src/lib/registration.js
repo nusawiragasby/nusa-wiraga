@@ -66,6 +66,24 @@ export const weightClassesFor = (ageClass = "") => {
 // Untuk penyaringan di dasbor, di mana kelompok usianya bisa belum dipilih.
 export const ALL_WEIGHT_CLASSES = [...new Set([...KELAS_DINI, ...KELAS_PRA_REMAJA])];
 
+// Kelas kategori Berkelompok (Jurus Baku). Disimpan di field weight_class
+// seperti kelas tanding, jadi kolom "Kelas" di Sheets, dasbor, dan Excel
+// memuat keduanya tanpa kolom tambahan. Kembarannya: KELAS_BERKELOMPOK di
+// server.py.
+export const KELAS_BERKELOMPOK = ["Wudhu", "SD", "SMP"];
+
+// Apakah kategori ini wajib memilih kelas.
+export const butuhKelas = (category = "") =>
+  category.includes("Tanding") || category.includes("Berkelompok");
+
+// Pilihan kelas untuk kategori & kelompok usia. Kelas tanding baru ada
+// setelah kelompok usia dipilih; kelas Berkelompok tidak bergantung usia.
+export const kelasUntuk = (category = "", ageClass = "") => {
+  if (category.includes("Tanding")) return weightClassesFor(ageClass);
+  if (category.includes("Berkelompok")) return KELAS_BERKELOMPOK;
+  return [];
+};
+
 export const MAX_MEMBERS = 5;
 
 export const FILE_BASES = [
