@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { api, formatApiError } from "@/lib/api";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
-import { AGE_CLASSES, CATEGORIES, butuhKelas, fileKindsForCount, kelasUntuk, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
+import { AGE_CLASSES, CATEGORIES, butuhKelas, fileKindsForCount, kelasUntuk, kindFor, memberCount, memberLabel, minMemberCount } from "@/lib/registration";
+import { IdCardPanel } from "@/components/IdCardPanel";
 import { ContactPanitia } from "@/components/ContactPanitia";
 
 
@@ -90,6 +91,10 @@ export default function RegisterPage() {
   // yang diwajibkan supaya pendaftar melihat apa saja yang masih kurang.
   const setCount = isGroup ? Math.max(namaTerisi.length, minAnggota) : 1;
   const fileFields = fileKindsForCount(setCount);
+  // ID card dibuat dari pas foto yang masih ada di browser, satu per anggota.
+  const pesertaIdCard = (isGroup ? namaTerisi : [form.full_name.trim()]).map((nama, i) => ({
+    nama, ambilFoto: async () => files[kindFor("foto", i)],
+  }));
   const set = (k) => (e) => setForm({ ...form, [k]: e.target ? e.target.value : e });
   // Kelas tanding berbeda per kelompok usia, jadi pilihan lama dikosongkan
   // saat kelompoknya diganti — kalau tidak, kelas milik kelompok lain bisa
@@ -364,7 +369,7 @@ export default function RegisterPage() {
       </div>
 
       <Dialog open={!!result} onOpenChange={(terbuka) => !terbuka && mulaiPendaftaranBaru()}>
-        <DialogContent className="border-amber-500/30 bg-[#13131A] text-slate-50" data-testid="reg-success-modal">
+        <DialogContent className="max-h-[92vh] overflow-y-auto border-amber-500/30 bg-[#13131A] text-slate-50" data-testid="reg-success-modal">
           <DialogHeader>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
               <CheckCircle2 className="h-8 w-8 text-amber-400" />
@@ -379,6 +384,10 @@ export default function RegisterPage() {
             <p className="text-xs uppercase tracking-widest text-slate-500">Nomor Registrasi</p>
             <p className="mt-1 font-display text-3xl font-black text-amber-400" data-testid="reg-number-text">{result?.reg_number}</p>
           </div>
+          {result && (
+            <IdCardPanel pratinjau peserta={pesertaIdCard} kontingen={form.contingent_school}
+              regNumber={result.reg_number} testId="reg-idcard" />
+          )}
           <div className="flex flex-col gap-3 sm:flex-row">
             <ContactPanitia
               message={`Halo Panitia Nusa Wiraga, saya ${form.full_name} (${result?.reg_number}) ingin konfirmasi pendaftaran.`}

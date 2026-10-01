@@ -13,6 +13,7 @@ import { ResultsManager } from "@/components/admin/ResultsManager";
 import { SponsorsManager } from "@/components/admin/SponsorsManager";
 import { BracketManager } from "@/components/admin/BracketManager";
 import { EditRegistrantDialog } from "@/components/admin/EditRegistrantDialog";
+import { IdCardPanel } from "@/components/IdCardPanel";
 import { compressImage, MAX_DIMENSION_DOC, MAX_DIMENSION_PHOTO } from "@/lib/compressImage";
 import { api, formatApiError, waAthleteLink, setToken } from "@/lib/api";
 import { CATEGORIES, FILE_BASES, fileKindsForCount, kindFor, memberLabel } from "@/lib/registration";
@@ -419,9 +420,17 @@ export default function AdminDashboard() {
               const nama = filesOf.member_names?.[i] || (i === 0 ? filesOf.full_name : "");
               return (
                 <div key={i} className="rounded-xl border border-[#2E2E3A] bg-[#0B0B0E] p-3">
-                  <div className="mb-2 flex items-baseline gap-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-200">{memberLabel(i, jumlahAnggota(filesOf))}</span>
-                    <span className="truncate text-xs text-slate-500">{nama}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-slate-500">{nama}</span>
+                    {/* ID card perlu pas foto; untuk pendaftar lama atau kartu yang
+                        hilang, panitia mengunduhnya di sini lalu mengirimkannya. */}
+                    {filesOf.files?.[kindFor("foto", i)] && (
+                      <IdCardPanel key={`${filesOf.id}-${i}`} regNumber={filesOf.reg_number} kontingen={filesOf.contingent_school}
+                        testId={`admin-idcard-${i}`}
+                        peserta={[{ nama, ambilFoto: async () =>
+                          (await api.get(`/admin/files/${filesOf.id}/${kindFor("foto", i)}`, { responseType: "blob" })).data }]} />
+                    )}
                   </div>
                   {/* Satu slot per baris: tiga kolom plus tombol unggah membuat labelnya
                       terpotong jadi "D…", "S…", "P…" di lebar dialog ini. */}
