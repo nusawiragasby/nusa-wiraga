@@ -1,6 +1,6 @@
 // ID card peserta, digambar di browser admin dari template panitia.
 //
-// Template (public/idcard/template.webp) sudah dibersihkan dari tulisan contoh
+// Template (public/idcard/template-v2.webp) sudah dibersihkan dari tulisan contoh
 // "NAMA", "KELAS/KATEGORI", dan "KONTINGEN". Urutan lapisannya:
 //   1. template
 //   2. orangnya saja, latar pas fotonya dibuang (lihat hapusLatar.js);
@@ -13,7 +13,9 @@
 
 import { hapusLatar } from "@/lib/hapusLatar";
 
-const TEMPLATE_URL = "/idcard/template.webp";
+// Nama berkas diberi versi: gambar di-cache browser 30 hari (vercel.json),
+// jadi template baru harus bernama baru supaya tidak tertukar yang lama.
+const TEMPLATE_URL = "/idcard/template-v2.webp";
 const LEBAR = 591;
 const TINGGI = 1004;
 const SKALA = 2;
