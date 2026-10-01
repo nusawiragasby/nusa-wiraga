@@ -423,7 +423,9 @@ export default function AdminDashboard() {
                     <span className="text-xs font-bold text-slate-200">{memberLabel(i, jumlahAnggota(filesOf))}</span>
                     <span className="truncate text-xs text-slate-500">{nama}</span>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  {/* Satu slot per baris: tiga kolom plus tombol unggah membuat labelnya
+                      terpotong jadi "D…", "S…", "P…" di lebar dialog ini. */}
+                  <div className="grid gap-1.5">
                     {FILE_BASES.map((b) => {
                       const kind = kindFor(b.base, i);
                       const ada = !!filesOf.files?.[kind];
