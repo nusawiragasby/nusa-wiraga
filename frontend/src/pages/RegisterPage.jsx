@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { CheckCircle2, MessageCircle, Loader2, FileUp, Check, AlertTriangle } from "lucide-react";
@@ -49,6 +49,8 @@ function FileSlot({ field, file, status, onPick }) {
 }
 
 export default function RegisterPage() {
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(true);
   const [form, setForm] = useState(INITIAL);
   const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [files, setFiles] = useState({});
@@ -70,6 +72,23 @@ export default function RegisterPage() {
   // yang tersimpan di DOM semuanya harus hilang, dan pelatih tidak perlu
   // menghapus apa pun secara manual.
   const mulaiPendaftaranBaru = () => window.location.assign(window.location.pathname);
+
+  // Ambil status pendaftaran (buka/tutup)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get("/register/status");
+        if (!cancelled) setRegistrationOpen(res.data.open);
+      } catch {
+        // anggap buka kalau gagal fetch
+      } finally {
+        if (!cancelled) setCheckingStatus(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
   const minAnggota = minMemberCount(form.category);
@@ -229,6 +248,24 @@ export default function RegisterPage() {
         </aside>
 
         <main className="flex items-center justify-center px-4 py-12 lg:col-span-3 sm:px-8">
+          {checkingStatus ? (
+            <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+          ) : !registrationOpen ? (
+            <div className="text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Maaf, <span className="text-gold-gradient">Pendaftaran Ditutup</span>
+              </h2>
+              <p className="mt-4 text-lg text-slate-300">
+                Pendaftaran atlet untuk Nusa Wiraga 2026 sudah berakhir.
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                Silakan hubungi panitia untuk informasi lebih lanjut.
+              </p>
+              <Link to="/" className="mt-8 inline-block rounded-xl bg-amber-500 px-6 py-3 text-sm font-extrabold text-stone-900 hover:opacity-90">
+                Kembali ke Beranda
+              </Link>
+            </div>
+          ) : (
           <div className="muncul w-full max-w-2xl">
             <Link to="/" className="text-sm text-slate-400 hover:text-amber-400" data-testid="register-back-link">&larr; Kembali ke Beranda</Link>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight sm:text-3xl">Formulir Pendaftaran Atlet</h2>
@@ -360,6 +397,7 @@ export default function RegisterPage() {
               </div>
             </form>
           </div>
+        )}
         </main>
       </div>
 
