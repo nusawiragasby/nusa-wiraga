@@ -55,6 +55,8 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("semua");
   const [status, setStatus] = useState("semua");
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [toggling, setToggling] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,11 +114,31 @@ export default function AdminDashboard() {
       } catch {
         /* indikator Sheets tidak wajib */
       }
+      if (cancelled) return;
+      try {
+        const regStatus = (await api.get("/register/status")).data;
+        setRegistrationOpen(regStatus.open);
+      } catch {
+        /* status registrasi tidak wajib */
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [load, navigate]);
+
+  const toggleRegistration = async () => {
+    setToggling(true);
+    try {
+      const res = await api.put("/admin/settings/registration", { open: !registrationOpen });
+      setRegistrationOpen(res.data.open);
+      toast.success(`Pendaftaran ${res.data.open ? "dibuka" : "ditutup"}`);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setToggling(false);
+    }
+  };
 
   const updateStatus = async (id, patch, successMsg) => {
     try {
@@ -251,6 +273,35 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Toggle buka/tutup pendaftaran */}
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-[#2E2E3A] bg-[#13131A] p-4">
+          <span className="text-sm font-semibold text-slate-200">Pendaftaran</span>
+          <button
+            onClick={toggleRegistration}
+            disabled={toggling}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              registrationOpen ? "bg-emerald-500" : "bg-red-500"
+            } ${toggling ? "opacity-50" : ""}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              registrationOpen ? "translate-x-6" : "translate-x-1"
+            }`} />
+          </button>
+          <span className={`text-xs font-semibold ${registrationOpen ? "text-emerald-400" : "text-red-400"}`}>
+            {registrationOpen ? "Buka" : "Tutup"}
+          </span>
+          {sheets && (
+            <span data-testid="admin-sheets-status"
+              className={`ml-auto flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                sheets.connected
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : "border-[#2E2E3A] text-slate-500"
+              }`}>
+              <Sheet className="h-3.5 w-3.5" /> {sheets.connected ? `Sheets: ${sheets.sheet_title || "Terhubung"}` : "Sheets Nonaktif"}
+            </span>
+          )}
+        </div>
+
         <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[#2E2E3A] bg-[#13131A] p-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -282,16 +333,6 @@ export default function AdminDashboard() {
             className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-extrabold text-stone-900 hover:opacity-90">
             <Download className="h-4 w-4" /> Export Excel
           </button>
-          {sheets && (
-            <span data-testid="admin-sheets-status"
-              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                sheets.connected
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                  : "border-[#2E2E3A] text-slate-500"
-              }`}>
-              <Sheet className="h-3.5 w-3.5" /> {sheets.connected ? `Sheets: ${sheets.sheet_title || "Terhubung"}` : "Sheets Nonaktif"}
-            </span>
-          )}
         </div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-[#2E2E3A] bg-[#13131A]" data-testid="admin-table">
