@@ -49,6 +49,25 @@ if RESEND_API_KEY:
 STATUS_VALUES = {"menunggu", "terverifikasi", "ditolak"}
 PAYMENT_VALUES = {"belum_bayar", "lunas"}
 
+# Pendaftaran: bisa ditutup admin lewat panel. Saat tutup, endpoint POST /register
+# mengembalikan 403. Status disimpan di collection 'settings' MongoDB.
+REGISTRATION_DEFAULT_OPEN = True
+REGISTRATION_SETTING_KEY = "registration_pendaftaran"
+
+async def is_registration_open() -> bool:
+    doc = await db.settings.find_one({"_id": REGISTRATION_SETTING_KEY})
+    if doc is None:
+        return REGISTRATION_DEFAULT_OPEN
+    return bool(doc.get("open", REGISTRATION_DEFAULT_OPEN))
+
+async def set_registration_open(open_: bool):
+    await db.settings.update_one(
+        {"_id": REGISTRATION_SETTING_KEY},
+        {"$set": {"open": open_}},
+        upsert=True,
+    )
+    invalidate_cache("registration")
+
 # Kategori beregu wajib melampirkan tiga berkas untuk SETIAP anggota, jadi
 # kind berkas bernomor. Kind anggota pertama tetap tanpa akhiran ("foto",
 # bukan "foto_1") supaya berkas pendaftar lama, link di Google Sheets, dan
@@ -378,7 +397,7 @@ async def next_reg_number() -> str:
 KELAS_BERKELOMPOK = ("Wudhu", "SD", "SMP")
 
 
-def rapikan_data_peserta(data: dict) -> dict:
+async def rapikan_data_peserta(data: dict) -> dict:
     """Terapkan aturan isian pendaftaran pada `data`, ditolak 422 bila tak sah.
 
     Dipakai formulir pendaftaran dan suntingan admin supaya keduanya tidak
@@ -386,6 +405,8 @@ def rapikan_data_peserta(data: dict) -> dict:
     kategori non-Tanding, dan daftar anggota dibuang di kategori perorangan,
     supaya sisa isian kategori lama tidak ikut tersimpan.
     """
+    if not await is_registration_open():
+        raise HTTPException(status_code=403, detail="Pendaftaran ditutup")
     for field, label in (("full_name", "Nama peserta"), ("contingent_school", "Perguruan"),
                          ("category", "Kategori"), ("age_class", "Kelompok usia")):
         if not (data.get(field) or "").strip():
@@ -423,7 +444,7 @@ def rapikan_data_peserta(data: dict) -> dict:
 
 @api_router.post("/register")
 async def register(body: RegisterInput):
-    for field, value in rapikan_data_peserta(body.model_dump()).items():
+    for field, value in (await rapikan_data_peserta(body.model_dump())).items():
         setattr(body, field, value)
     reg_id = str(uuid.uuid4())
     doc = body.model_dump()
@@ -545,7 +566,7 @@ async def update_registrant(reg_id: str, body: RegistrantUpdate, user: dict = De
             raise HTTPException(status_code=404, detail="Pendaftar tidak ditemukan")
         data = {f: lama.get(f) for f in FIELD_DATA_PESERTA}
         data.update({f: dikirim[f] for f in FIELD_DATA_PESERTA if f in dikirim})
-        update.update(rapikan_data_peserta(data))
+        update.update(await rapikan_data_peserta(data))
         update["updated_at"] = datetime.now(timezone.utc).isoformat()
         # Kolom A-J biasanya dibiarkan agar koreksi manual di Sheets aman;
         # suntingan admin justru harus menimpanya. Penanda ini disimpan supaya
@@ -1022,6 +1043,13 @@ def cached(name: str):
 
 def invalidate_cache(name: str):
     _public_cache.pop(name, None)
+
+
+@api_router.get("/register/status")
+@cached("registration")
+async def registration_status():
+    """Apakah pendaftaran dibuka atau ditutup. Cache 30 detik."""
+    return {"registration_open": await is_registration_open()}
 
 
 @api_router.get("/news")
@@ -1785,6 +1813,16 @@ async def sheets_status(user: dict = Depends(get_current_user)):
         _sheet_meta_cache.clear()
         logger.error(f"Cek status Sheets gagal: {e}")
         return {"configured": True, "connected": False}
+
+
+class RegistrationToggle(BaseModel):
+    open: bool
+
+
+@api_router.put("/admin/settings/registration")
+async def admin_toggle_registration(body: RegistrationToggle, user: dict = Depends(get_current_user)):
+    await set_registration_open(body.open)
+    return {"registration_open": body.open}
 
 
 app.include_router(api_router)

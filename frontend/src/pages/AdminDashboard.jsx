@@ -55,6 +55,21 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("semua");
   const [status, setStatus] = useState("semua");
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [toggling, setToggling] = useState(false);
+
+  const toggleRegistration = async () => {
+    try {
+      setToggling(true);
+      const res = await api.put("/admin/settings/registration", { open: !registrationOpen });
+      setRegistrationOpen(res.data.registration_open);
+      toast.success(res.data.registration_open ? "Pendaftaran dibuka" : "Pendaftaran ditutup");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setToggling(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +84,8 @@ export default function AdminDashboard() {
       // cepat daripada menyalakan proses tambahan.
       const s = await api.get("/admin/stats");
       setStats(s.data);
+      const regStatus = await api.get("/register/status");
+      setRegistrationOpen(regStatus.data.registration_open);
       const r = await api.get("/admin/registrants", { params });
       setRows(r.data);
     } catch (err) {
@@ -241,7 +258,7 @@ export default function AdminDashboard() {
           <StatCard icon={Wallet} label="Belum Lunas" value={stats?.unpaid ?? "-"} testId="admin-stats-unpaid" />
         </div>
 
-        {stats?.by_category?.length > 0 && (
+            {stats?.by_category?.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2" data-testid="admin-stats-categories">
             {stats.by_category.map((c) => (
               <Badge key={c.category} variant="outline" className="border-[#2E2E3A] bg-[#13131A] px-3 py-1 text-xs text-slate-300">
@@ -250,6 +267,31 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+
+        {/* Toggle tutup/buka pendaftaran */}
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#2E2E3A] bg-[#13131A] px-4 py-3">
+          <span className="text-sm text-slate-300">
+            {registrationOpen ? (
+              <><span className="inline-block h-2 w-2 rounded-full bg-green-500" /> Pendaftaran <span className="font-bold text-green-400">Dibuka</span></>
+            ) : (
+              <><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> Pendaftaran <span className="font-bold text-red-400">Ditutup</span></>
+            )}
+          </span>
+          <button
+            onClick={toggleRegistration}
+            disabled={toggling}
+            className={`ml-auto relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              registrationOpen ? "bg-green-600" : "bg-red-600"
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              registrationOpen ? "translate-x-6" : "translate-x-1"
+            }`} />
+          </button>
+          <span className="text-xs text-slate-500">
+            {toggling ? "Menyimpan..." : "Ketuk untuk " + (registrationOpen ? "tutup" : "buka")}
+          </span>
+        </div>
 
         <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[#2E2E3A] bg-[#13131A] p-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">

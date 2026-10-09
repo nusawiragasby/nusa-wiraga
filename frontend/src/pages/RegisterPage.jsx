@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { CheckCircle2, MessageCircle, Loader2, FileUp, Check, AlertTriangle } from "lucide-react";
@@ -70,6 +70,14 @@ export default function RegisterPage() {
   // yang tersimpan di DOM semuanya harus hilang, dan pelatih tidak perlu
   // menghapus apa pun secara manual.
   const mulaiPendaftaranBaru = () => window.location.assign(window.location.pathname);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    api.get("/register/status")
+      .then(({ data }) => { setRegistrationOpen(data.registration_open); setStatusLoaded(true); })
+      .catch(() => { setRegistrationOpen(true); setStatusLoaded(true); });
+  }, []);
   const isTanding = form.category.includes("Tanding");
   const groupSize = memberCount(form.category);
   const minAnggota = minMemberCount(form.category);
@@ -233,6 +241,18 @@ export default function RegisterPage() {
             <Link to="/" className="text-sm text-slate-400 hover:text-amber-400" data-testid="register-back-link">&larr; Kembali ke Beranda</Link>
             <h2 className="mt-4 text-2xl font-extrabold tracking-tight sm:text-3xl">Formulir Pendaftaran Atlet</h2>
             <p className="mt-2 text-sm text-slate-400">Lengkapi data berikut, lalu hubungi panitia via WhatsApp untuk verifikasi pembayaran & berkas.</p>
+            {statusLoaded && !registrationOpen ? (
+              <div className="mt-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-8 text-center">
+                <h3 className="text-xl font-bold text-amber-400">Pendaftaran Ditutup</h3>
+                <p className="mt-3 text-slate-300">
+                  Maaf, pendaftaran Nusa Wiraga 2026 sudah ditutup. Silakan hubungi panitia
+                  melalui WhatsApp untuk informasi lebih lanjut.
+                </p>
+                <div className="mt-5">
+                  <ContactPanitia />
+                </div>
+              </div>
+            ) : (
             <form onSubmit={submit} className="mt-8 grid gap-5 sm:grid-cols-2" data-testid="register-form">
               <div className="space-y-2">
                 <Label htmlFor="full_name">{isGroup ? `Nama Anggota 1${groupSize === 5 ? " (Ketua Regu)" : ""}` : "Nama Lengkap Atlet"}</Label>
@@ -359,6 +379,7 @@ export default function RegisterPage() {
                 </Button>
               </div>
             </form>
+            )}
           </div>
         </main>
       </div>
