@@ -49,6 +49,28 @@ if RESEND_API_KEY:
 STATUS_VALUES = {"menunggu", "terverifikasi", "ditolak"}
 PAYMENT_VALUES = {"belum_bayar", "lunas"}
 
+settings_col = db["settings"]
+
+
+async def get_registration_status() -> bool:
+    setting = await settings_col.find_one({"_id": "registration"})
+    if setting is None:
+        await settings_col.update_one(
+            {"_id": "registration"},
+            {"$set": {"open": True}},
+            upsert=True
+        )
+        return True
+    return setting.get("open", True)
+
+
+async def set_registration_status(open_status: bool):
+    await settings_col.update_one(
+        {"_id": "registration"},
+        {"$set": {"open": open_status}},
+        upsert=True
+    )
+
 # Kategori beregu wajib melampirkan tiga berkas untuk SETIAP anggota, jadi
 # kind berkas bernomor. Kind anggota pertama tetap tanpa akhiran ("foto",
 # bukan "foto_1") supaya berkas pendaftar lama, link di Google Sheets, dan
@@ -421,10 +443,20 @@ def rapikan_data_peserta(data: dict) -> dict:
     return data
 
 
+@api_router.get("/register/status")
+async def register_status():
+    is_open = await get_registration_status()
+    return {"open": is_open}
+
+
 @api_router.post("/register")
 async def register(body: RegisterInput):
     for field, value in rapikan_data_peserta(body.model_dump()).items():
         setattr(body, field, value)
+    # Cek status pendaftaran
+    is_open = await get_registration_status()
+    if not is_open:
+        raise HTTPException(status_code=403, detail="Pendaftaran sedang ditutup")
     reg_id = str(uuid.uuid4())
     doc = body.model_dump()
     draft_token = doc.pop("draft_token", None)
@@ -485,6 +517,15 @@ async def append_registration_to_sheet_safe(doc: dict):
     except Exception as e:
         _sheet_meta_cache.clear()
         logger.error(f"Gagal sinkron Google Sheets: {e}")
+
+
+@api_router.put("/admin/settings/registration")
+async def admin_toggle_registration(body: dict, user: dict = Depends(get_current_user)):
+    is_open = body.get("open")
+    if not isinstance(is_open, bool):
+        raise HTTPException(status_code=422, detail="Nilai 'open' harus boolean (true/false)")
+    await set_registration_status(is_open)
+    return {"open": is_open}
 
 
 @api_router.get("/admin/stats")
@@ -1788,15 +1829,15 @@ async def sheets_status(user: dict = Depends(get_current_user)):
 
 
 app.include_router(api_router)
-
-# Router data tes kebugaran (/api/uji/*). Didefinisikan di uji.py supaya
-# server.py tidak makin gemuk; dependency yang sudah ada diserahkan ke sana
-# agar tidak terjadi impor melingkar.
+# --- Router data tes kebugaran (/api/uji/*) -------------------------------
+# Definisi ada di uji.py supaya server.py tidak makin panjang. Dependency yang
+# sudah ada diserahkan ke sana agar tidak terjadi impor melingkar.
 from uji import make_uji_router  # noqa: E402
 
 app.include_router(
     make_uji_router(db, get_current_user, hash_password, verify_password, admin_email=ADMIN_EMAIL)
 )
+# -------------------------------------------------------------------------
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
