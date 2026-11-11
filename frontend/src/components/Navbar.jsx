@@ -8,6 +8,7 @@ const LINKS = [
   { label: "Kategori & Biaya", href: "/#kategori", testId: "nav-category-link" },
   { label: "Bagan", href: "/#bagan", testId: "nav-bracket-link" },
   { label: "Hasil Pertandingan", href: "/#hasil", testId: "nav-results-link" },
+  { label: "Uji Kebugaran", href: "/kebugaran", testId: "nav-fitness-link" },
   { label: "Sponsor", href: "/#sponsor", testId: "nav-sponsor-link" },
 ];
 
