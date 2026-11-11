@@ -499,6 +499,49 @@
   .sitebar .sb-sub{color:var(--slate-500); letter-spacing:.04em; text-transform:none; font-weight:500;}
   @media (max-width:560px){ .sitebar .sb-sub{display:none;} }
   @media print{ .sitebar{display:none !important;} }
+
+  /* ---------- INTEGRASI BACKEND: login, status, mode publik ---------- */
+  .sb-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .sb-sync{
+    font-size:10.5px; letter-spacing:.08em; padding:3px 8px; border-radius:999px;
+    border:1px solid var(--line); color:var(--slate-400); white-space:nowrap;
+  }
+  .sb-sync.ok{color:#4ade80; border-color:rgba(74,222,128,.35);}
+  .sb-sync.err{color:#f87171; border-color:rgba(248,113,113,.4);}
+  .sb-sync.busy{color:var(--amber); border-color:rgba(245,158,11,.4);}
+  .sb-auth-btn{
+    font-family:var(--font-body); font-size:11px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; cursor:pointer; padding:5px 11px; border-radius:8px;
+    border:1px solid rgba(250,204,21,.4); background:rgba(250,204,21,.12); color:var(--gold);
+  }
+  .sb-auth-btn:hover{background:rgba(250,204,21,.22); color:#fff;}
+  .sb-auth-btn.ghost{border-color:var(--line); background:transparent; color:var(--slate-300);}
+  .sb-auth-btn.ghost:hover{border-color:var(--slate-500); color:#fff;}
+  .sb-user{font-size:11px; text-transform:none; letter-spacing:0; color:#e2e8f0; font-weight:600;}
+
+  .mode-banner{
+    max-width:1180px; margin:18px auto -10px; padding:12px 16px;
+    border:1px solid rgba(56,189,248,.35); border-radius:12px;
+    background:rgba(56,189,248,.08); color:#bae6fd; font-size:12.5px; line-height:1.5;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .login-box{max-width:420px;}
+  .login-hint{font-size:12.5px; color:var(--slate-400); margin:0 0 14px; line-height:1.5;}
+  .login-msg{font-size:12px; min-height:16px; margin:4px 0 10px; color:var(--slate-400);}
+  .login-msg.err{color:#f87171;}
+  .login-msg.ok{color:#4ade80;}
+
+  .users-table{width:100%; border-collapse:collapse; font-size:13px; margin-top:6px;}
+  .users-table th{
+    text-align:left; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--slate-400); padding:8px 10px; border-bottom:1px solid var(--line);
+  }
+  .users-table td{padding:9px 10px; border-bottom:1px solid rgba(44,58,86,.5); color:var(--slate-300);}
+  .users-table td b{color:#fff; font-weight:600;}
+  .users-form{display:grid; grid-template-columns:1.4fr 1fr 1fr .9fr auto; gap:10px; align-items:end; margin-top:16px;}
+  .users-form .field{margin:0;}
+  @media (max-width:900px){ .users-form{grid-template-columns:1fr 1fr;} .users-form button{grid-column:span 2;} }
+  @media print{ .mode-banner{display:none !important;} }
 </style>
 </head>
 <body>
@@ -507,8 +550,13 @@
     <a class="sb-back" href="/">&#8592; Nusa Wiraga</a>
     <span class="sb-title">Pusat Uji Kebugaran</span>
   </div>
-  <span class="sb-sub">Data atlet &middot; tes fisik &middot; norma &middot; rekap hasil</span>
+  <div class="sb-right">
+    <span class="sb-sub">Data atlet &middot; tes fisik &middot; norma &middot; rekap hasil</span>
+    <span class="sb-sync" id="sb-sync">memuat…</span>
+    <span id="sb-auth"></span>
+  </div>
 </div>
+<div class="mode-banner" id="mode-banner" style="display:none;"></div>
 <div class="app">
 
   <div class="topbar">
@@ -740,6 +788,26 @@
       <button type="button" class="btn btn-gold" id="btn-admin-new">+ Tambah Item Tes</button>
     </div>
     <div id="admin-list"></div>
+
+    <div class="card" id="users-card" style="display:none; margin-top:22px;">
+      <h3 class="form-title" style="margin-bottom:6px;">Akun Panitia &amp; Pelatih</h3>
+      <p style="font-size:12.5px; color:var(--slate-400); margin:0 0 4px;">
+        Admin bisa mengelola data tes, norma, dan akun. Pelatih hanya bisa mengelola atlet &amp; hasil tes.
+      </p>
+      <div class="table-scroll">
+        <table class="users-table" id="users-table"></table>
+      </div>
+      <div class="users-form" id="users-form">
+        <div class="field"><label for="user-email">Email</label><input id="user-email" type="email" placeholder="pelatih@nusawiraga.id"></div>
+        <div class="field"><label for="user-name">Nama</label><input id="user-name" type="text" placeholder="Nama pelatih"></div>
+        <div class="field"><label for="user-pass">Kata sandi</label><input id="user-pass" type="password" placeholder="min. 8 karakter"></div>
+        <div class="field"><label for="user-role">Peran</label>
+          <select id="user-role"><option value="pelatih">Pelatih</option><option value="admin">Admin</option></select>
+        </div>
+        <button type="button" class="btn btn-gold" id="btn-user-add">Tambah Akun</button>
+      </div>
+      <div class="import-msg" id="users-msg"></div>
+    </div>
   </section>
 
 </div>
@@ -752,6 +820,30 @@
       <button type="button" class="modal-close" id="admin-modal-close">&times;</button>
     </div>
     <div class="modal-body" id="admin-modal-body"></div>
+  </div>
+</div>
+
+
+<!-- ============ MODAL: MASUK PANITIA ============ -->
+<div id="login-backdrop" class="modal-backdrop" style="display:none;">
+  <div class="modal-box login-box">
+    <div class="modal-head">
+      <h3>Masuk Panitia</h3>
+      <button type="button" class="modal-close" id="login-close">&times;</button>
+    </div>
+    <form class="modal-body" id="login-form">
+      <p class="login-hint">Pakai akun panitia/pelatih Nusa Wiraga. Tanpa masuk, halaman ini hanya menampilkan rekap publik.</p>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Kata sandi</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="login-msg" id="login-msg"></div>
+      <button type="submit" class="btn btn-gold" style="width:100%;">Masuk</button>
+    </form>
   </div>
 </div>
 
@@ -768,7 +860,8 @@
   let hasilSessionId = null;      
 
   /* ---------------- STORAGE ---------------- */
-  function loadData(){
+  function loadCache(){
+    /* Hanya dipakai sebagai cadangan saat server tidak bisa dihubungi. */
     try{
       const raw = localStorage.getItem(STORAGE_KEY);
       athletes = raw ? JSON.parse(raw) : [];
@@ -793,10 +886,13 @@
     renderAll();
   }
   function saveData(){
-    try{ 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(athletes)); 
+    // Cache lokal tetap ditulis (supaya cepat & tetap terbaca saat offline),
+    // lalu perubahan dikirim ke server secara bertahap (hanya atlet yang berubah).
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(athletes));
     }
     catch(e){ console.error('Gagal menyimpan data', e); alert('Gagal menyimpan data. Penyimpanan browser mungkin penuh atau dinonaktifkan.'); }
+    scheduleSync();
   }
 
   /* ---------------- HELPERS ---------------- */
@@ -1121,6 +1217,112 @@
 
   /* ---------------- PENGATURAN ADMIN: NORM BUILDER ---------------- */
   const CUSTOM_KEY = 'gta_custom_tests_v1';
+
+  /* ================== DATA BERSAMA (BACKEND) ==================
+     Halaman ini sebelumnya menyimpan semuanya di localStorage. Sekarang data
+     atlet, sesi tes, dan norma kustom disimpan di backend Nusa Wiraga
+     (FastAPI + MongoDB) sehingga bisa dipakai bersama antar panitia/pelatih.
+
+     - Belum masuk  : hanya rekap publik (tanpa tanggal lahir).
+     - Pelatih      : kelola atlet & hasil tes.
+     - Admin        : semua di atas + norma + akun panitia.
+     ============================================================ */
+  const API_BASE = window.UJI_API_BASE || 'https://nusawiraga.my.id/api';
+  const TOKEN_KEY = 'nw_admin_token';   // kunci yang sama dengan aplikasi React (src/lib/api.js)
+  const USER_KEY = 'nw_uji_user';
+  let mode = 'publik';                  // publik | pelatih | admin
+  let currentUser = null;
+  let lastSent = {};                    // id atlet -> JSON yang sudah tersimpan di server
+  let syncTimer = null;
+  let syncing = false;
+  let syncPending = false;
+
+  function token(){ try{ return localStorage.getItem(TOKEN_KEY); }catch(e){ return null; } }
+  function simpanToken(t){ try{ t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); }catch(e){} }
+  async function api(path, opts){
+    opts = opts || {};
+    const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
+    const t = token();
+    if(t) headers['Authorization'] = 'Bearer ' + t;
+    try{
+      const res = await fetch(API_BASE + path, {
+        method: opts.method || 'GET',
+        headers: headers,
+        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        cache: 'no-store'
+      });
+      let data = null;
+      try{ data = await res.json(); }catch(e){ data = null; }
+      return {ok: res.ok, status: res.status, data: data};
+    }catch(err){
+      return {ok: false, status: 0, data: null, error: err};
+    }
+  }
+  function setSyncStatus(teks, jenis){
+    const el = document.getElementById('sb-sync');
+    if(!el) return;
+    el.textContent = teks;
+    el.className = 'sb-sync ' + (jenis || '');
+  }
+  function scheduleSync(){
+    if(mode === 'publik' || mode === 'lokal') return;
+    clearTimeout(syncTimer);
+    setSyncStatus('menyimpan…', 'busy');
+    syncTimer = setTimeout(syncNow, 600);
+  }
+  async function syncNow(){
+    if(mode === 'publik' || mode === 'lokal') return;
+    if(syncing){ syncPending = true; return; }
+    syncing = true;
+    try{
+      const ids = new Set(athletes.map(a=>a.id));
+      const antre = athletes.filter(a=> lastSent[a.id] !== JSON.stringify(a));
+      for(const a of antre){
+        const isi = JSON.stringify(a);
+        const r = await api('/uji/atlet/' + encodeURIComponent(a.id), {method:'PUT', body: a});
+        if(!r.ok){ setSyncStatus('gagal menyimpan', 'err'); return; }
+        lastSent[a.id] = isi;
+      }
+      for(const id of Object.keys(lastSent)){
+        if(ids.has(id)) continue;
+        const r = await api('/uji/atlet/' + encodeURIComponent(id), {method:'DELETE'});
+        if(r.ok || r.status === 404) delete lastSent[id];
+      }
+      setSyncStatus('tersimpan', 'ok');
+    } finally {
+      syncing = false;
+      if(syncPending){ syncPending = false; scheduleSync(); }
+    }
+  }
+  function normalisasiNorma(n){
+    const c = (n && typeof n === 'object') ? n : {};
+    c.defs = c.defs || {};
+    c.norms = c.norms || {};
+    c.deleted = c.deleted || [];
+    return c;
+  }
+  function applyStaffState(d){
+    athletes = (d.atlet || []).map(a=> Object.assign({}, a));
+    lastSent = {};
+    athletes.forEach(a=>{ lastSent[a.id] = JSON.stringify(a); });
+    customTests = normalisasiNorma(d.norma);
+    try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(customTests)); }catch(e){}
+    rebuildEffectiveTests();
+    mode = (d.role === 'admin') ? 'admin' : 'pelatih';
+    currentUser = {email: d.email, name: d.name || d.email, role: d.role};
+    if(!selectedId && athletes.length) selectedId = athletes[0].id;
+    if(!hasilSelectedId && athletes.length) hasilSelectedId = athletes[0].id;
+  }
+  function applyPublicState(d){
+    athletes = (d.atlet || []).map(a=>{
+      const peta = {};
+      const sesi = (a.sesiTes || []).map(s=>{ peta[s.tanggal] = s.usia; return s; });
+      return {id: a.id, nama: a.nama, klub: a.klub || '', jk: a.jk, tgl: null, sesiTes: sesi, __usiaPeta: peta};
+    });
+    mode = 'publik';
+    currentUser = null;
+    if(athletes.length && !hasilSelectedId) hasilSelectedId = athletes[0].id;
+  }
   let customTests = {defs:{}, norms:{}, deleted:[]};
 
   function loadCustomTests(){
@@ -1135,6 +1337,12 @@
   function saveCustomTests(){
     try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(customTests)); }
     catch(e){ alert('Gagal menyimpan pengaturan norma. Penyimpanan browser mungkin penuh atau dinonaktifkan.'); }
+    // Norma ikut disimpan di server agar semua perangkat memakai acuan yang sama.
+    if(mode === 'admin'){
+      api('/uji/norma', {method:'PUT', body:{customTests: customTests}}).then(r=>{
+        setSyncStatus(r.ok ? 'norma tersimpan' : 'gagal simpan norma', r.ok ? 'ok' : 'err');
+      });
+    }
   }
 
   const ICON_LIBRARY = [
@@ -1865,7 +2073,7 @@
     function badgeOrInactive(def, raw, aktif){
       if(!aktif) return badgeHTML('nonaktif');
       const value = parseValueFor(def.key, raw);
-      const label = classify(def.key, value, a.jk, calcAgeAt(a.tgl, sesi.tanggal));
+      const label = classify(def.key, value, a.jk, ageOf(a, sesi.tanggal));
       return badgeHTML(label);
     }
     function isFilled(key){
@@ -2167,7 +2375,7 @@
     const card = document.querySelector(`.badge-holder[data-badge-key="${key}"]`);
     if(!card) return;
     const value = parseValueFor(key, rawValue);
-    const label = classify(key, value, jk, calcAgeAt(a.tgl, tglAcuan));
+    const label = classify(key, value, jk, ageOf(a, tglAcuan));
     card.innerHTML = badgeHTML(label);
   }
 
@@ -2270,7 +2478,7 @@
     selHasilSession.onchange = function(){ hasilSessionId = this.value; renderHasilPage(); };
 
     const sesi = findSession(a, hasilSessionId);
-    const pts = testPoints(sesi.tests, a.jk, calcAgeAt(a.tgl, sesi.tanggal));
+    const pts = testPoints(sesi.tests, a.jk, ageOf(a, sesi.tanggal));
     document.getElementById('radar-holder').innerHTML = drawRadar(pts);
 
     const overall = overallFromPoints(pts);
@@ -2288,7 +2496,7 @@
       const itemRows = defs.map(def=>{
         const raw = t[def.key];
         const value = parseValueFor(def.key, raw);
-        const label = classify(def.key, value, a.jk, calcAgeAt(a.tgl, sesi.tanggal));
+        const label = classify(def.key, value, a.jk, ageOf(a, sesi.tanggal));
         return `<tr><td>${def.title}</td><td class="val">${raw!==undefined && raw!=='' ? raw : '-'} <span style="font-size:11px;color:var(--slate-500);">${def.unit}</span></td><td>${badgeHTML(label)}</td></tr>`;
       }).join('');
       return catRow + itemRows;
@@ -2352,7 +2560,7 @@
   }
   
   function buildSessionReportData(a, s, idx){
-    const usia = calcAgeAt(a.tgl, s.tanggal);
+    const usia = ageOf(a, s.tanggal);
     const activeDefs = TEST_DEFS.filter(d=>isTestActive(s, d.key) && d.key!=='tinggi' && d.key!=='berat');
     const rows = activeDefs.map((def)=>{
       const raw = (s.tests||{})[def.key];
@@ -2760,8 +2968,8 @@
       const same = Math.abs(delta) < 1e-9;
       const trendClass = same ? 'trend-flat' : (improved ? 'trend-up' : 'trend-down');
       const arrow = same ? '→' : (improved ? '▲' : '▼');
-      const labelAwal = classify(def.key, vAwal, a.jk, calcAgeAt(a.tgl, awal.tanggal));
-      const labelNow = classify(def.key, vNow, a.jk, calcAgeAt(a.tgl, sesiSekarang.tanggal));
+      const labelAwal = classify(def.key, vAwal, a.jk, ageOf(a, awal.tanggal));
+      const labelNow = classify(def.key, vNow, a.jk, ageOf(a, sesiSekarang.tanggal));
       return `<tr>
         <td>${def.title}</td>
         <td>${(awal.tests||{})[def.key]} <span style="font-size:11px;color:var(--slate-500);">${def.unit}</span> ${badgeHTML(labelAwal)}</td>
@@ -2808,7 +3016,7 @@
     const rows = athletes.map((a, index)=>{
       const s = latestSession(a);
       const t = s ? (s.tests||{}) : {};
-      const usiaTes = s ? calcAgeAt(a.tgl, s.tanggal) : null;
+      const usiaTes = s ? ageOf(a, s.tanggal) : null;
       const cells = activeDefs.map(def=>{
         const aktif = s ? isTestActive(s, def.key) : false;
         if(!aktif) return `<td><span class="mini-badge" style="color:var(--slate-500);">—</span></td>`;
@@ -2838,6 +3046,235 @@
     renderAthleteList();
     renderTesPage();
     renderHasilPage();
+  }
+
+  /* ---------------- USIA: dukung data publik tanpa tanggal lahir ---------------- */
+  function ageOf(a, tglAcuan){
+    if(a && a.__usiaPeta && tglAcuan !== undefined && a.__usiaPeta.hasOwnProperty(tglAcuan)){
+      return a.__usiaPeta[tglAcuan];
+    }
+    return calcAgeAt(a ? a.tgl : null, tglAcuan);
+  }
+
+  /* ---------------- LOGIN PANITIA ---------------- */
+  function renderAuthBar(){
+    const el = document.getElementById('sb-auth');
+    if(!el) return;
+    if(mode === 'publik' || !currentUser){
+      el.innerHTML = '<button type="button" class="sb-auth-btn" id="btn-login">Masuk panitia</button>';
+      const b = document.getElementById('btn-login');
+      if(b) b.addEventListener('click', openLogin);
+      return;
+    }
+    const label = (currentUser.name || currentUser.email) + ' · ' + (mode === 'admin' ? 'Admin' : 'Pelatih');
+    el.innerHTML = '<span class="sb-user">' + escapeHtml(label) + '</span>' +
+                   '<button type="button" class="sb-auth-btn ghost" id="btn-logout">Keluar</button>';
+    const out = document.getElementById('btn-logout');
+    if(out) out.addEventListener('click', doLogout);
+  }
+  function openLogin(){
+    const b = document.getElementById('login-backdrop');
+    const msg = document.getElementById('login-msg');
+    if(msg){ msg.textContent = ''; msg.className = 'login-msg'; }
+    if(b) b.style.display = 'flex';
+    const f = document.getElementById('login-email');
+    if(f) setTimeout(()=> f.focus(), 50);
+  }
+  function closeLogin(){
+    const b = document.getElementById('login-backdrop');
+    if(b) b.style.display = 'none';
+    const p = document.getElementById('login-password');
+    if(p) p.value = '';
+  }
+  async function doLogin(ev){
+    if(ev) ev.preventDefault();
+    const email = (document.getElementById('login-email').value || '').trim();
+    const pass = document.getElementById('login-password').value || '';
+    const msg = document.getElementById('login-msg');
+    msg.className = 'login-msg';
+    msg.textContent = 'Memeriksa…';
+    const r = await api('/auth/login', {method:'POST', body:{email: email, password: pass}});
+    if(!r.ok || !r.data || !r.data.token){
+      msg.className = 'login-msg err';
+      msg.textContent = (r.data && r.data.detail) ? r.data.detail : 'Gagal masuk. Periksa email & kata sandi.';
+      return;
+    }
+    simpanToken(r.data.token);
+    const st = await api('/uji/state');
+    if(!st.ok || !st.data){
+      simpanToken(null);
+      msg.className = 'login-msg err';
+      msg.textContent = 'Berhasil masuk, tetapi data tes gagal dimuat. Coba lagi.';
+      return;
+    }
+    const cacheLokal = [];
+    try{ cacheLokal.push.apply(cacheLokal, JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }catch(e){}
+    applyStaffState(st.data);
+    // Migrasi sekali jalan: data yang dulu hanya ada di peramban ini bisa
+    // diunggah ke server saat pertama kali masuk, kalau server masih kosong.
+    if(!athletes.length && cacheLokal.length){
+      if(confirm('Server masih kosong, tetapi peramban ini menyimpan ' + cacheLokal.length +
+                 ' atlet (data lama). Unggah data itu ke server sekarang?\n\nPilih Batal bila ingin mulai dari kosong.')){
+        athletes = cacheLokal;
+        selectedId = athletes[0] ? athletes[0].id : null;
+        hasilSelectedId = selectedId;
+        saveData();
+      }
+    }
+    try{ localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); }catch(e){}
+    closeLogin();
+    renderAll(); applyMode(); renderAuthBar(); setSyncStatus('tersambung', 'ok');
+  }
+  async function doLogout(){
+    try{ await api('/auth/logout', {method:'POST', body:{}}); }catch(e){}
+    simpanToken(null);
+    try{ localStorage.removeItem(USER_KEY); }catch(e){}
+    mode = 'publik'; currentUser = null;
+    location.reload();
+  }
+
+  /* ---------------- MODE TAMPILAN ---------------- */
+  function applyMode(){
+    const staf = mode !== 'publik';
+    const adminMode = (mode === 'admin' || mode === 'lokal');
+    document.querySelectorAll('.step-btn').forEach(b=>{
+      const p = b.dataset.page;
+      const tampil = (p === 'admin') ? adminMode : (staf ? true : p === 'hasil');
+      b.style.display = tampil ? '' : 'none';
+    });
+    const banner = document.getElementById('mode-banner');
+    if(banner){
+      if(staf){ banner.style.display = 'none'; }
+      else {
+        banner.style.display = 'flex';
+        banner.innerHTML = '<span><b>Mode publik.</b> Halaman ini menampilkan rekap hasil tes terbaru. ' +
+          'Pengelolaan data atlet & norma hanya untuk panitia yang sudah masuk.</span>' +
+          '<button type="button" class="sb-auth-btn" id="btn-login-banner">Masuk panitia</button>';
+        const b = document.getElementById('btn-login-banner');
+        if(b) b.addEventListener('click', openLogin);
+      }
+    }
+    const reset = document.getElementById('btn-reset');
+    if(reset) reset.style.display = adminMode ? '' : 'none';
+    const kartu = document.getElementById('users-card');
+    if(kartu) kartu.style.display = (mode === 'admin') ? '' : 'none';
+    if(!staf) showPage('hasil');
+    if(mode === 'admin') renderUsers();
+  }
+
+  /* ---------------- AKUN PANITIA (ADMIN) ---------------- */
+  async function renderUsers(){
+    const tabel = document.getElementById('users-table');
+    if(!tabel) return;
+    const r = await api('/uji/users');
+    if(!r.ok || !Array.isArray(r.data)){
+      tabel.innerHTML = '<tr><td>Gagal memuat daftar akun.</td></tr>';
+      return;
+    }
+    const baris = r.data.map(u=>{
+      const peran = u.role || 'admin';
+      return '<tr><td><b>' + escapeHtml(u.name || '-') + '</b></td><td>' + escapeHtml(u.email) + '</td>' +
+        '<td>' + (peran === 'admin' ? 'Admin' : 'Pelatih') + '</td>' +
+        '<td style="text-align:right; white-space:nowrap;">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-user-role="' + escapeHtml(u.email) + '" data-role="' +
+        (peran === 'admin' ? 'pelatih' : 'admin') + '">Jadikan ' + (peran === 'admin' ? 'Pelatih' : 'Admin') + '</button> ' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-user-pass="' + escapeHtml(u.email) + '">Reset sandi</button> ' +
+        '<button type="button" class="btn btn-danger btn-sm" data-user-del="' + escapeHtml(u.email) + '">Hapus</button>' +
+        '</td></tr>';
+    }).join('');
+    tabel.innerHTML = '<thead><tr><th>Nama</th><th>Email</th><th>Peran</th><th></th></tr></thead><tbody>' + baris + '</tbody>';
+    tabel.querySelectorAll('[data-user-role]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const r2 = await api('/uji/users/' + encodeURIComponent(b.dataset.userRole), {method:'PATCH', body:{role: b.dataset.role}});
+        pesanUsers(r2.ok ? 'Peran diperbarui.' : (r2.data && r2.data.detail) || 'Gagal mengubah peran.', r2.ok);
+        if(r2.ok) renderUsers();
+      });
+    });
+    tabel.querySelectorAll('[data-user-pass]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const baru = window.prompt('Kata sandi baru untuk ' + b.dataset.userPass + ' (min. 8 karakter):');
+        if(!baru) return;
+        const r2 = await api('/uji/users/' + encodeURIComponent(b.dataset.userPass), {method:'PATCH', body:{password: baru}});
+        pesanUsers(r2.ok ? 'Kata sandi diperbarui.' : (r2.data && r2.data.detail) || 'Gagal mengubah sandi.', r2.ok);
+      });
+    });
+    tabel.querySelectorAll('[data-user-del]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        if(!confirm('Hapus akun ' + b.dataset.userDel + '?')) return;
+        const r2 = await api('/uji/users/' + encodeURIComponent(b.dataset.userDel), {method:'DELETE'});
+        pesanUsers(r2.ok ? 'Akun dihapus.' : (r2.data && r2.data.detail) || 'Gagal menghapus akun.', r2.ok);
+        if(r2.ok) renderUsers();
+      });
+    });
+  }
+  function pesanUsers(teks, ok){
+    const el = document.getElementById('users-msg');
+    if(!el) return;
+    el.textContent = teks;
+    el.className = 'import-msg ' + (ok ? 'ok' : 'err');
+  }
+  document.getElementById('btn-user-add')?.addEventListener('click', async ()=>{
+    const email = (document.getElementById('user-email').value || '').trim();
+    const name = (document.getElementById('user-name').value || '').trim();
+    const password = document.getElementById('user-pass').value || '';
+    const role = document.getElementById('user-role').value;
+    if(!email || password.length < 8){
+      pesanUsers('Email wajib diisi dan kata sandi minimal 8 karakter.', false);
+      return;
+    }
+    const r = await api('/uji/users', {method:'POST', body:{email: email, name: name, password: password, role: role}});
+    pesanUsers(r.ok ? 'Akun ' + email + ' dibuat.' : (r.data && r.data.detail) || 'Gagal membuat akun.', r.ok);
+    if(r.ok){
+      document.getElementById('user-email').value = '';
+      document.getElementById('user-name').value = '';
+      document.getElementById('user-pass').value = '';
+      renderUsers();
+    }
+  });
+  document.getElementById('login-close')?.addEventListener('click', closeLogin);
+  document.getElementById('login-backdrop')?.addEventListener('click', function(e){
+    if(e.target === this) closeLogin();
+  });
+  document.getElementById('login-form')?.addEventListener('submit', doLogin);
+
+  /* ---------------- MULAI ---------------- */
+  async function bootstrap(){
+    renderAuthBar();
+    let serverSiap = true;
+    if(token()){
+      const st = await api('/uji/state');
+      if(st.ok && st.data){
+        applyStaffState(st.data);
+      } else if(st.status === 401){
+        simpanToken(null);
+        try{ localStorage.removeItem(USER_KEY); }catch(e){}
+        loadCache();
+      } else {
+        serverSiap = false;
+        loadCache();
+      }
+    } else {
+      loadCache();
+    }
+    if(mode === 'publik'){
+      const pub = await api('/uji/public/rekap');
+      if(pub.ok && pub.data){
+        applyPublicState(pub.data);
+        setSyncStatus('rekap publik', '');
+      } else if(pub.status === 0 || pub.status === 404){
+        // Backend belum punya endpoint /api/uji. Halaman tetap bisa dipakai
+        // seperti versi lama (data di peramban ini saja) — tidak boleh blank.
+        mode = 'lokal';
+        setSyncStatus('mode lokal', 'busy');
+      } else {
+        setSyncStatus('rekap publik tidak termuat', 'err');
+      }
+    } else {
+      setSyncStatus(serverSiap ? 'tersambung' : 'mode lokal (server belum siap)', serverSiap ? 'ok' : 'busy');
+    }
+    renderAll();
+    applyMode();
+    renderAuthBar();
   }
 
   window.App = {selectAthlete, editAthlete, deleteAthlete, selectHasil, downloadSessionReport};
@@ -2876,7 +3313,7 @@
   loadCustomTests();
   rebuildEffectiveTests();
   renderAdminPage();
-  loadData();
+  bootstrap();
 })();
 </script>
 </body>

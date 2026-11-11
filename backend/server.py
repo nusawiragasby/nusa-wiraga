@@ -1789,6 +1789,15 @@ async def sheets_status(user: dict = Depends(get_current_user)):
 
 app.include_router(api_router)
 
+# Router data tes kebugaran (/api/uji/*). Didefinisikan di uji.py supaya
+# server.py tidak makin gemuk; dependency yang sudah ada diserahkan ke sana
+# agar tidak terjadi impor melingkar.
+from uji import make_uji_router  # noqa: E402
+
+app.include_router(
+    make_uji_router(db, get_current_user, hash_password, verify_password, admin_email=ADMIN_EMAIL)
+)
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Origin yang boleh memanggil API, disebut satu per satu.
@@ -1864,6 +1873,8 @@ async def startup():
     await db.registrants.create_index("created_at")
     await db.registrants.create_index("category")
     await db.registrants.create_index("status")
+    await db.uji_atlet.create_index("id", unique=True)
+    await db.uji_norma.create_index("id", unique=True)
     await seed_admin()
     await seed_news()
     # Berkas disimpan di disk lokal — tidak ada init storage eksternal lagi.
